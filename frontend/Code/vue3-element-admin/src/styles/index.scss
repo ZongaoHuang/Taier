@@ -1,0 +1,199 @@
+@use "./reset";
+.background {
+  background-color: var(--el-bg-color-overlay);
+  border: 2px solid var(--el-border-color-light);
+  border-color: lightgrey;
+  position: absolute;
+  width: 100%;
+  height: 100vh;
+  padding-left: 25px;
+  padding-right: 25px;
+  padding-top: 15px;
+  padding-bottom: 25px;
+  margin-top: 5px;
+}
+.title {
+  display: inline-block;
+  margin: 0;
+  width: 15%;
+  font-size: 25px;
+  font-weight: 600;
+}
+.titlebarrightbutton {
+  width: 85%;
+  display: inline-block;
+  text-align: right;
+  margin: 0;
+  padding-right: 20px;
+}
+.taskInfoTitle {
+  display: inline-block;
+  font-size: 17px;
+  font-weight: 580;
+  width: 50%;
+  margin: 0;
+  min-width: max-content;
+}
+.taskInfobarrightbutton {
+  width: 50%;
+  display: inline-block;
+  text-align: right;
+}
+.returnButton {
+  display: inline-block;
+  background-color: white;
+  font-size: 15px;
+  font-weight: 500;
+  border: 2px solid;
+  width: 70px;
+  height: 35px;
+  border-color: lightgrey;
+  margin-left: 15px;
+}
+.taskCreateButton {
+  display: inline-block;
+  background-color: rgb(71, 160, 250);
+  font-size: 15px;
+  color: white;
+  border: 2px solid;
+  width: 105px;
+  height: 35px;
+  border-color: rgb(71, 160, 250);
+  margin-left: 15px;
+  cursor: pointer;
+}
+.taskdeleteButton {
+  display: inline-block;
+  color: white;
+  background-color: rgb(231, 92, 106);
+  width: 85px;
+  height: 35px;
+  font-size: 15px;
+  margin-left: 15px;
+}
+.titlebar {
+  padding-left: 20px;
+  padding-top: 10px;
+  padding-bottom: 20px;
+  display: block;
+  height: auto;
+}
+.tasktitle {
+  display: inline-block;
+  color: rgba(170, 176, 186);
+  font-weight: 600;
+  width: 50%;
+  padding: 0;
+  margin-top: 10px;
+  text-align: center;
+}
+.taskbar {
+  display: block;
+  padding-top: 10px;
+  margin-left: 20px;
+  margin-right: 20px;
+  height: 88%;
+  border-top: 3px solid var(--el-border-color-light);
+  border-color: lightgrey;
+}
+.tasklistbar {
+  height: 100%;
+  width: 30%;
+  border-right: 3px solid var(--el-border-color-light);
+  border-color: lightgrey;
+  padding-left: 10px;
+  padding-right: 10px;
+  display: inline-block;
+  vertical-align: top;
+}
+.taskInfobar {
+  height: 100%;
+  width: 70%;
+  display: inline-block;
+  vertical-align: top;
+}
+.taskInfo {
+  margin-top: 15px;
+  margin-left: 32px;
+  margin-right: 18px;
+  height: fit-content;
+  box-shadow: var(--el-box-shadow-light);
+  border-radius: 5px;
+  padding: 10px;
+}
+.taskInfoUp {
+  padding: 15px;
+  height: 30%;
+  text-align: start;
+}
+.divide-lightgrey {
+  border: 1px;
+  border-color: lightgrey;
+  margin-inline: 20px;
+  border-style: solid;
+}
+.taskInfoDown {
+  padding: 15px;
+  height: 70%;
+}
+.taskModel {
+  display: inline-block;
+  width: 23%;
+  height: 100%;
+}
+.taskDataset {
+  display: inline-block;
+  width: 45%;
+  height: 100%;
+}
+.taskEval {
+  display: inline-block;
+  width: 19%;
+  height: 100%;
+}
+.taskAttackType {
+  display: inline-block;
+  width: 13%;
+  height: 100%;
+}
+.table-container > .el-card__header {
+  padding: calc(var(--el-card-padding) - 8px) var(--el-card-padding);
+}
+.taskInfoUp > p {
+  font-size: 14px;
+  margin-right: 65px;
+  //display: flex;
+}
+.taskInfoUp > .span1 {
+  width: 120px;
+}
+.taskInfoUp > .span2 {
+  width: 150px;
+}
+.taskInfoUp > .span3 {
+  width: 120px;
+}
+.taskInfoUp > .span4 {
+  display: inline-block;
+  width: 200px;
+  text-align: right;
+}
+.span4 > button {
+  display: inline-block;
+  width: 75px;
+  height: 22px;
+  color: grey;
+  border: rgb(185, 185, 185);
+}
+.task {
+  width: 50%;
+}
+.link-type,
+.link-type:focus {
+  color: #337ab7;
+  cursor: pointer;
+
+  &:hover {
+    color: rgb(32 160 255);
+  }
+}
