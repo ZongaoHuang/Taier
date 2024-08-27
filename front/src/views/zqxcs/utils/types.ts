@@ -1,8 +1,11 @@
 interface FormItemProps {
-  id?: number;
-  name: string;
-  data: any;
-  scale: string;
+  id?: string;
+  name?: string;
+  suite_name: string;
+  file?: File;
+  created_at?: string;
+  question_count?: number;
+  cate?: string;
 }
 interface FormProps {
   formInline: FormItemProps;

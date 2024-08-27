@@ -1,9 +1,10 @@
 import { dayjs, cloneDeep, getRandomIntBetween } from "./utils";
-import GroupLine from "@iconify-icons/ri/group-line";
-import Question from "@iconify-icons/ri/question-answer-line";
-import CheckLine from "@iconify-icons/ri/chat-check-line";
+import GroupLine from "@iconify-icons/ep/document";
+import Question from "@iconify-icons/ep/document-checked";
+import CheckLine from "@iconify-icons/ep/data-board";
 import Smile from "@iconify-icons/ri/star-smile-line";
 import { clone } from "@pureadmin/utils";
+
 
 const days = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 

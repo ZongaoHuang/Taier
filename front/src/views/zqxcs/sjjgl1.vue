@@ -34,7 +34,8 @@ const {
   onSearch,
   openDialog,
   handleUpdate,
-  handleDelete
+  handleDelete,
+  openCreateSetDialog
 } = useSjj(tableRef);
 </script>
 
@@ -57,10 +58,10 @@ const {
             class="!w-[180px]"
           />
         </el-form-item>
-        <el-form-item label="数据集规模：" prop="scale">
+        <el-form-item label="测试类型：" prop="suite">
           <el-input
-            v-model="form.scale"
-            placeholder="请输入数据集规模"
+            v-model="form.suite"
+            placeholder="请输入测试类型"
             clearable
             class="!w-[180px]"
           />
@@ -89,7 +90,7 @@ const {
         <el-button
           type="primary"
           :icon="useRenderIcon(AddFill)"
-          @click="openDialog()"
+          @click="openCreateSetDialog()"
         >
           新增数据集
         </el-button>

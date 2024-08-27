@@ -18,7 +18,7 @@ pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 # 进入jailbreak目录
 cd jailbreak
 # 运行Django服务
-manage.py runserver 0.0.0.0:80
+python manage.py runserver 0.0.0.0:80
 ```
 
 注意，如果改变启动的端口，要在前端请求的位置改变相应的端口

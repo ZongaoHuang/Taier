@@ -1,46 +1,30 @@
 <template>
   <div>
-    <h1>数据集测试</h1>
-    <el-form :model="form" label-width="100px">
-      <el-form-item label="名称">
-        <el-input v-model="form.name" placeholder="请输入名称"></el-input>
-      </el-form-item>
-      <el-form-item label="规模">
-        <el-input v-model="form.scale" placeholder="请输入规模"></el-input>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="fetchData">获取数据集</el-button>
-      </el-form-item>
-    </el-form>
-    <el-table :data="tableData" style="width: 100%">
-      <el-table-column prop="date" label="日期" width="180" />
-      <el-table-column prop="name" label="名称" width="180" />
-      <el-table-column prop="id" label="ID" width="180" />
-      <el-table-column prop="scale" label="规模" width="180" />
-    </el-table>
+    <el-button type="primary" @click="fetchData1">测试</el-button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { getSjj } from "@/api/sjj";
+import { onMounted } from "vue";
+import { test11 } from "@/api/test"; // 引入之前定义的test函数
 
-// 表单数据
-const form = ref({
-  name: "",
-  scale: ""
-});
-
-// 表格数据
-const tableData = ref([]);
-
-// 获取数据集
-const fetchData = async () => {
-  const response = await getSjj({ name: form.value.name, scale: form.value.scale });
-  if (response.success) {
-    tableData.value = response.data?.list || [];
-  } else {
-    console.error("获取数据失败");
+// 点击按钮手动触发获取数据
+async function fetchData1() {
+  try {
+    const response = await test11();
+    if (response && response.data) {
+      console.log('Response:', response.data);
+    } else {
+      console.error('Response is undefined or missing data');
+    }
+  } catch (error) {
+    console.error('Request failed:', error.message);
   }
-};
+}
+
+
+// 页面加载时自动调用 fetchData1
+onMounted(() => {
+  fetchData1();
+});
 </script>

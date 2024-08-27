@@ -1,16 +1,24 @@
 import "./reset.css";
 import dayjs from "dayjs";
 import editForm from "../form/index.vue";
+import createSetForm from "../form/createSetForm.vue";
 import { message } from "@/utils/message";
 import { addDialog } from "@/components/ReDialog";
 import type { PaginationProps } from "@pureadmin/table";
-import type { FormItemProps} from "../utils/types";
+import type { FormItemProps } from "../utils/types";
+
 import {
   getKeyList,
   deviceDetection
 } from "@pureadmin/utils";
 import {
-  getSjj
+  getSetList,
+  createSet,
+  updateSet,
+  deleteSet,
+  SetData,
+  SetResponse,
+  uploadJson
 } from "@/api/sjj";
 import {
   type Ref,
@@ -24,22 +32,20 @@ import {
 
 export function useSjj(tableRef: Ref) {
   const form = reactive({
-    id: "",
     name: "",
-    scale: "",
-    data: ""
+    suite: ""
   });
   const formRef = ref();
   const dataList = ref([]);
   const loading = ref(true);
   const switchLoadMap = ref({});
   const selectedNum = ref(0);
-    const pagination = reactive<PaginationProps>({
+  const pagination = reactive<PaginationProps>({
     total: 0,
     pageSize: 10,
     currentPage: 1,
     background: true
-    });
+  });
   const columns: TableColumnList = [
     {
       label: "勾选列", // 如果需要表格多选，此处label必须设置
@@ -48,31 +54,26 @@ export function useSjj(tableRef: Ref) {
       reserveSelection: true // 数据刷新后保留选项
     },
     {
-      label: "数据集ID",
-      prop: "id",
-      width: 90
-    },
-    {
-      label: "数据集名称",
-      prop: "name",
-      minWidth: 130
-    },
-    {
-      label: "数据集规模",
-      prop: "scale",
-      minWidth: 130
-    },
-    {
       label: "创建时间",
-      minWidth: 90,
       prop: "createTime",
       formatter: ({ createTime }) =>
         dayjs(createTime).format("YYYY-MM-DD HH:mm:ss")
     },
     {
+      label: "数据集名称",
+      prop: "name",
+    },
+    {
+      label: "测试类型",
+      prop: "suite_name",
+    },
+    {
+      label: "规模",
+      prop: "question_count"
+    },
+    {
       label: "操作",
       fixed: "right",
-      width: 180,
       slot: "operation"
     }
   ];
@@ -85,21 +86,45 @@ export function useSjj(tableRef: Ref) {
       "dark:hover:!text-primary"
     ];
   });
-  function handleUpdate(row) {
-    console.log(row);
+
+  async function handleUpdate(row: SetData) {
+    try {
+      const { data } = await updateSet(row);
+      if (data.list && data.list.length > 0) {
+        message(`数据集更新成功`, { type: "success" });
+        onSearch();
+      } else {
+        message(`更新失败: 未能获取更新后的数据`, { type: "error" });
+      }
+    } catch (error) {
+      console.error("Error updating set:", error);
+      message(`更新失败`, { type: "error" });
+    }
   }
 
-  function handleDelete(row) {
-    message(`您删除了用户编号为${row.id}的这条数据`, { type: "success" });
-    onSearch();
+  async function handleDelete(row) {
+    try {
+      const { data } = await deleteSet({ id: row.id });
+      if (data.list && data.list.length === 0) {
+        message(`数据集删除成功`, { type: "success" });
+        onSearch();
+      } else {
+        message(`删除失败: 未能删除数据`, { type: "error" });
+      }
+    } catch (error) {
+      console.error("Error deleting set:", error);
+      message(`删除失败`, { type: "error" });
+    }
   }
 
   function handleSizeChange(val: number) {
-    console.log(`${val} items per page`);
+    pagination.pageSize = val;
+    onSearch();
   }
 
   function handleCurrentChange(val: number) {
-    console.log(`current page: ${val}`);
+    pagination.currentPage = val;
+    onSearch();
   }
 
   /** 当CheckBox选择项发生变化时会触发该事件 */
@@ -117,37 +142,88 @@ export function useSjj(tableRef: Ref) {
   }
 
     /** 批量删除 */
-  function onbatchDel() {
-    // 返回当前选中的行
-    const curSelected = tableRef.value.getTableRef().getSelectionRows();
-    // 接下来根据实际业务，通过选中行的某项数据，比如下面的id，调用接口进行批量删除
-    message(`已删除用户编号为 ${getKeyList(curSelected, "id")} 的数据`, {
-      type: "success"
-    });
-    tableRef.value.getTableRef().clearSelection();
-    onSearch();
-  }
+    async function onbatchDel() {
+      const curSelected = tableRef.value.getTableRef().getSelectionRows();
+      const ids = getKeyList(curSelected, "id");
+      try {
+        const { data } = await deleteSet({ id: ids.join(',') });
+        if (data.list && data.list.length === 0) {
+          message(`已删除选中的��据集`, { type: "success" });
+          tableRef.value.getTableRef().clearSelection();
+          onSearch();
+        } else {
+          message(`批量删除失败: ${response.msg || '未知错误'}`, { type: "error" });
+        }
+      } catch (error) {
+        console.error("Error batch deleting sets:", error);
+        message(`批量删除失败: ${error instanceof Error ? error.message : '未知错误'}`, { type: "error" });
+      }
+    }
 
   async function onSearch() {
     loading.value = true;
-    const { data } = await getSjj(toRaw(form));
-    dataList.value = data.list;
-    pagination.total = data.total;
-    pagination.pageSize = data.pageSize;
-    pagination.currentPage = data.currentPage;
-
-    setTimeout(() => {
-        loading.value = false;
-      }, 500);
+    try {
+      const response = await getSetList(toRaw(form));
+      if (response.ret === 0 && response.data) {
+        dataList.value = response.data.list;
+        pagination.total = response.data.total || 0;
+        pagination.pageSize = response.data.pageSize || 10;
+        pagination.currentPage = response.data.currentPage || 1;
+      } else {
+        message(`获取数据失败: ${response.msg}`, { type: "error" });
+      }
+    } catch (error) {
+      console.error("Error fetching sets:", error);
+      message(`获取数据失败`, { type: "error" });
+    } finally {
+      loading.value = false;
+    }
   }
 
 
   const resetForm = formEl => {
     if (!formEl) return;
     formEl.resetFields();
-    form.id = "";
     onSearch();
   };
+
+function openCreateSetDialog() {
+  addDialog({
+    title: "新建数据集",
+    width: "50%",
+    draggable: true,
+    fullscreen: deviceDetection(),
+    fullscreenIcon: true,
+    closeOnClickModal: false,
+    contentRenderer: () => h(createSetForm, { ref: formRef }),
+    beforeSure: (done, { options }) => {
+      const FormRef = formRef.value.getRef();
+      FormRef.validate(async (valid) => {
+        if (valid) {
+          const formData = new FormData();
+          const { newFormInline } = formRef.value;
+          formData.append('name', newFormInline.name);
+          formData.append('suite_name', newFormInline.suite_name);
+          formData.append('file', newFormInline.file);
+
+          try {
+            const response = await uploadJson(formData);
+            if (response.ret === 0) {
+              message("数据集创建成功", { type: "success" });
+              done();
+              onSearch();
+            } else {
+              message(`创建失败: ${response.msg}`, { type: "error" });
+            }
+          } catch (error) {
+            console.error("Error creating set:", error);
+            message("创建失败", { type: "error" });
+          }
+        }
+      });
+    }
+  });
+}
 
   function openDialog(row?: FormItemProps) {
     addDialog({
@@ -155,8 +231,7 @@ export function useSjj(tableRef: Ref) {
         formInline: {
           id: row?.id ?? "",
           name: row?.name ?? "",
-          scale: row?.scale ?? "",
-          data: row?.data ?? "",
+          suite_name: row?.suite_name ?? "",
         }
       },
       width: "46%",
@@ -168,13 +243,17 @@ export function useSjj(tableRef: Ref) {
       beforeSure: (done, { options }) => {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
-        function chores() {
-          message(`您增加了数据集名称为${curData.name}的这条数据`, {
-            type: "success"
-          });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
-        }
+        FormRef.validate(valid => {
+          if (valid) {
+            if (curData.id) {
+              handleUpdate(curData);
+            } else {
+              createSet(curData);
+            }
+            done(); // 关闭弹框
+            onSearch(); // 刷新表格数据
+          }
+        });
       }
     });
   }
@@ -202,6 +281,7 @@ export function useSjj(tableRef: Ref) {
     handleSizeChange,
     handleCurrentChange,
     onSearch,
-    openDialog
+    openDialog,
+    openCreateSetDialog
   };
 }
