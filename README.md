@@ -21,7 +21,29 @@ cd jailbreak
 python manage.py runserver 0.0.0.0:80
 ```
 
-注意，如果改变启动的端口，要在前端请求的位置改变相应的端口
+注意，如果改变启动的端口，要在前端请求的位置改变相应的端口，具体步骤：
+在front文件夹下的*vite.config.ts*中，把 *http://127.0.0.1:8888* 的端口修改为后端启动的端口
+
+```bash
+// 服务端渲染
+    server: {
+      // 端口号
+      port: VITE_PORT,
+      host: "0.0.0.0",
+      // 本地跨域代理 https://cn.vitejs.dev/config/server-options.html#server-proxy
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:8888",
+          changeOrigin: true,
+          rewrite: path => path.replace(/^\/api/, "")
+        }
+      },
+      // 预热文件以提前转换和缓存结果，降低启动期间的初始页面加载时长并防止转换瀑布
+      warmup: {
+        clientFiles: ["./index.html", "./src/{views,components}/*"]
+      }
+    },
+```
 
 ## front前端启动方法
 
