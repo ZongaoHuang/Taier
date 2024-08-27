@@ -20,12 +20,22 @@ urlpatterns = [
     path("TestCreate", views.test_create),
     path("TestShow", views.test_show),
     path("config", views.config),
-    path("TaskCreate", views.task_create),
-    path("TaskShow", views.task_show),
-    path("TaskInfo", views.task_info),
-    path("TaskExec", views.task_exec),
-    path("TaskResult", views.task_res),
-    path("TestSuiteDele", views.test_suite_dele),
+    # path("TaskCreate", views.task_create),
+    # path("TaskShow", views.task_show),
+    # path("TaskInfo", views.task_info),
+    # path("TaskExec", views.task_exec),
+    # path("TaskResult", views.task_res),
+    # path("TaskDele", views.task_dele),
+    
+    # path("TestSuiteDele", views.test_suite_dele),
     path("TestDele", views.test_dele),
-    path("TaskDele", views.task_dele)
+
+    
+    path("TestExec", views.test_exec),
+    path("TestResult", views.test_res),
+
+    path("SetShow", views.set_show),
+    path("SetCreate", views.set_create, name="set_create"),
+    path('SetUpdate', views.set_update, name='set_update'),
+    path('SetDelete', views.set_delete, name='set_delete'),
 ]

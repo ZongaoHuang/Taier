@@ -4,14 +4,17 @@ import json
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from .forms import CSVUploadForm
-from .models import Set, Suite, Test, Task, Question
+from .models import Set, Suite, Test, Question
 import pandas as pd
 from .masterkey_zeroshot import  MasterKey
 import threading
 from .hallu_tool import run_single_evaluation, answer_parsing
 import concurrent.futures
-
-
+from django.utils import timezone
+import csv
+import io
+from django.db.models import Count
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 models = ["gpt-3.5-turbo"]
 evaluators = ["gpt-3.5-turbo"]
@@ -118,6 +121,8 @@ def get_dataset(dataset_name):
     return dss
 
 
+
+
 def run(request):
     if request.method == 'POST':
        # print(request.body)
@@ -193,7 +198,7 @@ def modify_question(request):
         except Question.DoesNotExist:
             return JsonResponse({
                 'ret': 1,
-                'msg': f'id 为`{question_id}`的客户不存在'
+                'msg': f'id 为`{question_id}`的问题不存在'
             })
         if 'goal' in data:
             question.goal = data['goal']
@@ -226,7 +231,7 @@ def del_question(request):
         except Question.DoesNotExist:
             return JsonResponse({
                 'ret': 1,
-                'msg': f'id 为`{question_id}`的客户不存在'
+                'msg': f'id 为`{question_id}`的问题不存在'
             })
 
         question.delete()
@@ -245,7 +250,7 @@ def list_set(request):
     }
     return JsonResponse(ret)
 
-
+# 测试类型创建
 def test_suit_create(request):
     example = """
     传入参数如下
@@ -270,7 +275,7 @@ def test_suit_create(request):
         response.content = "请使用post方法"
         return response
 
-
+# 测试类型展示
 def test_suit_show(request):
     example = """
     传入参数如下
@@ -294,6 +299,139 @@ def test_suit_show(request):
         response.content = "请使用get方法"
         return response
 
+def set_show(request):
+    if request.method == 'GET':
+        try:
+            page = request.GET.get('page', 1)
+            page_size = request.GET.get('pageSize', 10)
+            name = request.GET.get('name', '')
+            suite = request.GET.get('suite', '')
+
+            queryset = Set.objects.all()
+            if name:
+                queryset = queryset.filter(name__icontains=name)
+            if suite:
+                queryset = queryset.filter(suite__name__icontains=suite)
+
+            paginator = Paginator(queryset, page_size)
+            try:
+                sets = paginator.page(page)
+            except PageNotAnInteger:
+                sets = paginator.page(1)
+            except EmptyPage:
+                sets = paginator.page(paginator.num_pages)
+
+            set_list = [{
+                'id': set_obj.id,
+                'name': set_obj.name,
+                'suite_name': set_obj.suite.name,
+                'created_at': set_obj.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'question_count': set_obj.relation.count(),
+            } for set_obj in sets]
+
+            return JsonResponse({
+                'ret': 0,
+                'msg': 'Success',
+                'data': {
+                    'list': set_list,
+                    'total': paginator.count,
+                    'pageSize': int(page_size),
+                    'currentPage': int(page)
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})
+
+# 数据集创建 
+def set_create(request):
+    if request.method == 'POST':
+        try:
+            name = request.POST.get('name')
+            suite_name = request.POST.get('suite_name')
+            file = request.FILES.get('file')
+
+            if not name or not suite_name or not file:
+                return JsonResponse({'ret': 1, 'msg': '缺少必要参数'})
+
+            suite = Suite.objects.get(name=suite_name)
+            
+            new_set = Set.objects.create(
+                name=name,
+                suite=suite,
+                created_at=timezone.now()
+            )
+
+            decoded_file = file.read().decode('utf-8')
+            csv_reader = csv.DictReader(io.StringIO(decoded_file))
+            
+            for row in csv_reader:
+                question = Question.objects.create(
+                    goal=row.get('goal', ''),
+                    target=row.get('target', ''),
+                    behavior=row.get('behavior', ''),
+                    category=row.get('category', ''),
+                    methods=row.get('methods', '无增强')
+                )
+                new_set.relation.add(question)
+
+            return JsonResponse({'ret': 0, 'msg': '数据集创建成功', 'id': new_set.id})
+        except Suite.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '指定的Suite不存在'})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'创建失败: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
+
+# 数据集更新
+def set_update(request):
+    if request.method == 'POST':
+        try:
+            set_id = request.POST.get('id')
+            name = request.POST.get('name')
+            suite_name = request.POST.get('suite_name')
+
+            if not set_id or not name or not suite_name:
+                return JsonResponse({'ret': 1, 'msg': '缺少必要参数'})
+
+            set_instance = Set.objects.get(id=set_id)
+            suite = Suite.objects.get(name=suite_name)
+
+            set_instance.name = name
+            set_instance.suite = suite
+            set_instance.save()
+
+            return JsonResponse({'ret': 0, 'msg': '数据集更新成功'})
+        except Set.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '指定的数据集不存在'})
+        except Suite.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '指定的Suite不存在'})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'更新失败: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
+
+# 数据集删除
+def set_delete(request):
+    if request.method == 'POST':
+        try:
+            set_id = request.POST.get('id')
+
+            if not set_id:
+                return JsonResponse({'ret': 1, 'msg': '缺少必要参数'})
+
+            set_instance = Set.objects.get(id=set_id)
+            set_instance.delete()
+
+            return JsonResponse({'ret': 0, 'msg': '数据集删除成功'})
+        except Set.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '指定的数据集不存在'})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'删除失败: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
+    
 
 def test_create(request):
     example = """
@@ -323,14 +461,13 @@ def test_create(request):
             collection=collection_instance,
             model=model,
             evaluator=evaluator,
-            suite=suite_instance
+            suite=suite_instance,
+            state='starting',
+            escape_rate='0'
         )
-        return HttpResponse()
+        return JsonResponse({'ret': 0, 'msg': 'Test created successfully'})
     else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用post方法"
-        return response
+        return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
 
 
 def test_show(request):
@@ -344,23 +481,10 @@ def test_show(request):
         # print(request.body)
         params = request.GET
         suite_name = params["Suite_name"]
-        test_list = Test.objects.filter(suite__name=suite_name)
-        data = []
-        for test in test_list:
-            mid = dict()
-            mid["name"] = test.name
-            mid["collection"] = test.collection.name
-            mid["model"] = test.model
-            mid["evaluator"] = test.evaluator
-            data.append(mid)
-
-        ret = { "Test_list": data }
-        return JsonResponse(ret)
+        tests = Test.objects.filter(suite__name=suite_name).values('name', 'state', 'escape_rate', 'created_at')
+        return JsonResponse({'ret': 0, 'tests': list(tests)})
     else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用get方法"
-        return response
+        return JsonResponse({'ret': 1, 'msg': '请使用GET方法'})
 
 
 def config(request):
@@ -389,98 +513,6 @@ def config(request):
                 "category": "hallucination"
             }
         }
-        return JsonResponse(ret)
-    else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用get方法"
-        return response
-
-
-def task_create(request):
-    example = """
-           传入参数如下
-           {
-               "Suite_name" : "testSuite",
-               "Test_name" : "text",
-               "Task_name" : "task"
-           }
-           """
-    if request.method == 'POST':
-        params = json.loads(request.body)
-        suite_name = params['Suite_name']
-        test_name = params['Test_name']
-        task_name = params['Task_name']
-        # print(request.body)
-        final = 1
-        test_name_instance_list = Test.objects.filter(name=test_name)
-        for ins in test_name_instance_list:
-            if ins.suite.name == suite_name:
-                final = ins
-                break
-        # 提取对应的 test id 值
-        task_instance = Task.objects.create(
-            name=task_name,
-            escape_rate=0,
-            test=final,
-        )
-        return HttpResponse()
-    else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用post方法"
-        return response
-
-
-def task_show(request):
-    example = """
-        传入参数如下
-        {
-            "Suite_name" : "testSuite"
-        }
-        """
-    if request.method == 'GET':
-        # print(request.body)
-        params = request.GET
-        suite_name = params["Suite_name"]
-        test_list = Test.objects.filter(suite__name=suite_name)
-        data = []
-        for test in test_list:
-            task_list = Task.objects.filter(test=test)
-            for task in task_list:
-                mid = dict()
-                mid["name"] = task.name
-                mid["state"] = task.state
-                data.append(mid)
-
-        ret = { "Task_list": data }
-        return JsonResponse(ret)
-    else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用get方法"
-        return response
-
-
-def task_info(request):
-    example = """
-    传入参数如下
-    {
-        "Task_name" : "task"
-    }
-    """
-    if request.method == 'GET':
-        # print(request.body)
-        params = request.GET
-        task_name = params["Task_name"]
-        task = Task.objects.get(name=task_name)
-        data = []
-        mid = dict()
-        mid["state"] = task.state
-        mid["escapeRate"] = task.escape_rate
-        data.append(mid)
-
-        ret = {"Task_Info": data}
         return JsonResponse(ret)
     else:
         response = HttpResponse()
@@ -519,33 +551,33 @@ def exe_eva(data):
     return res_list, count
 
 
-def jailbreak_exe(task, test):
-    task.state = "running"
-    task.save()
+def jailbreak_exe(test_instance):
+    test_instance.state = "running"
+    test_instance.save()
     data = {
-        'dataset': test.collection.name,
-        'model': test.model,
-        'evaluate_model': test.model
+        'dataset': test_instance.collection.name,
+        'model': test_instance.model,
+        'evaluate_model': test_instance.evaluator
     }
     res_list, count = exe_eva(data)
-    print(f"{task.name}_{test.name}_{test.suite.name} done!")
+    print(f"{test_instance.name}_{test_instance.suite.name} done!")
     ret = {"data": res_list}
     ret_str = json.dumps(ret)
-    file_path = f"{task.name}_{test.name}_{test.suite.name}.json"
+    file_path = f"{test_instance.name}_{test_instance.suite.name}.json"
     with open(file_path, 'w', encoding='utf-8') as file:
         file.write(ret_str)
     rate = count / len(res_list)
-    task.escape_rate = f"{rate:.2%}"
-    task.state = "done"
-    task.save()
+    test_instance.escape_rate = f"{rate:.2%}"
+    test_instance.state = "finished"
+    test_instance.save()
     return
 
 
-def hallu_exe(task, test):
-    task.state = "running"
-    task.save()
+def hallu_exe(test_instance):
+    test_instance.state = "running"
+    test_instance.save()
 
-    collection = Set.objects.get(name=test.collection.name)
+    collection = Set.objects.get(name=test_instance.collection.name)
     related_questions = collection.relation.values()
     mid_list = []
     for qs in related_questions:
@@ -558,7 +590,7 @@ def hallu_exe(task, test):
         mid_list.append(mid)
 
     output_data = []
-    model_name = test.model
+    model_name = test_instance.model
     question_data = mid_list
     model_list = [model_name for x in range(len(question_data))]
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -566,146 +598,63 @@ def hallu_exe(task, test):
     for item in ret_list:
         output_data.append(item)
     hallucination_count = answer_parsing(output_data)
-    print(f"{task.name}_{test.name}_{test.suite.name} done!")
+    print(f"{test_instance.name}_{test_instance.suite.name} done!")
 
     ret = {"data": output_data}
     ret_str = json.dumps(ret)
-    file_path = f"{task.name}_{test.name}_{test.suite.name}.json"
+    file_path = f"{test_instance.name}_{test_instance.suite.name}.json"
     with open(file_path, 'w', encoding='utf-8') as file:
         file.write(ret_str)
     rate = hallucination_count / len(output_data)
-    task.escape_rate = f"{rate:.2%}"
-    task.state = "done"
-    task.save()
+    test_instance.escape_rate = f"{rate:.2%}"
+    test_instance.state = "finished"
+    test_instance.save()
     return
 
 
-def task_exec(request):
-    example = """
-    传入参数如下
-    {
-        "Task_name" : "Task1"
-    }
-    """
-    if request.method == 'POST':
-        params = json.loads(request.body)
-        task_name = params['Task_name']
-        # print(request.body)
-        task_instance = Task.objects.get(name=task_name)
-        if task_instance.state != "starting":
-            response = HttpResponse()
-            response.status_code = 404
-            response.content = "当前任务已运行"
-            return response
-        test_instance = task_instance.test
-        if test_instance.collection.cate == "jailbreak":
-            x = threading.Thread(target=jailbreak_exe, args=(task_instance, test_instance))
-            x.start()
-        else:
-            x = threading.Thread(target=hallu_exe, args=(task_instance, test_instance))
-            x.start()
-        return HttpResponse()
-    else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用post方法"
-        return response
-
-
-def task_res(request):
-    example = """
-            传入参数如下
-            {
-                "Task_name" : "task1"
-            }
-            """
-    if request.method == 'GET':
-        params = request.GET
-        task_name = params["Task_name"]
-        task = Task.objects.get(name=task_name)
-        test_name = task.test.name
-        suite_name = task.test.suite.name
-        filename = task_name+'_'+test_name+'_'+suite_name+'.json'
-        file_path = f"{filename}"
-        content = ' '
-        with open(file_path, 'r') as file:
-            content =file.read()
-        content = json.loads(content)
-        return JsonResponse(content)
-    else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用get方法"
-        return response
-
-
-def test_suite_dele(request):
-    example = """
-        传入参数如下
-        {
-            "Suite_name" : "testSuiteDelete"
-        }
-        """
-    if request.method == 'POST':
-        params = json.loads(request.body)
-        suite_name = params['Suite_name']
-
-        # print(request.body)
-        suite_instance = Suite.objects.get(
-            name=suite_name
-        )
-        suite_instance.delete()
-        return HttpResponse()
-    else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用post方法"
-        return response
-
-
-def test_dele(request):
-    example = """
-            传入参数如下
-            {
-                "Test_name" : "testDelete"
-            }
-            """
+def test_exec(request):
     if request.method == 'POST':
         params = json.loads(request.body)
         test_name = params['Test_name']
-
-        # print(request.body)
-        test_instance = Test.objects.get(
-            name=test_name
-        )
-        test_instance.delete()
-        return HttpResponse()
+        test_instance = Test.objects.get(name=test_name)
+        if test_instance.state != "starting":
+            return JsonResponse({'ret': 1, 'msg': "当前测试已运行"})
+        if test_instance.collection.cate == "jailbreak":
+            x = threading.Thread(target=jailbreak_exe, args=(test_instance,))
+            x.start()
+        else:
+            x = threading.Thread(target=hallu_exe, args=(test_instance,))
+            x.start()
+        return JsonResponse({'ret': 0, 'msg': '测试开始执行'})
     else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用post方法"
-        return response
+        return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
 
 
-def task_dele(request):
-    example = """
-            传入参数如下
-            {
-                "Task_name" : "taskDelete"
-            }
-            """
+def test_res(request):
+    if request.method == 'GET':
+        params = request.GET
+        test_name = params["Test_name"]
+        test = Test.objects.get(name=test_name)
+        filename = f"{test_name}_{test.suite.name}.json"
+        file_path = f"{filename}"
+        try:
+            with open(file_path, 'r') as file:
+                content = json.load(file)
+            return JsonResponse(content)
+        except FileNotFoundError:
+            return JsonResponse({'ret': 1, 'msg': '结果文件不存在'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': '请使用GET方法'})
+    
+def test_dele(request):
     if request.method == 'POST':
         params = json.loads(request.body)
-        task_name = params['Task_name']
-
-        # print(request.body)
-        task_instance = Task.objects.get(
-            name=task_name
-        )
-        task_instance.delete()
-        return HttpResponse()
+        test_name = params['Test_name']
+        try:
+            test_instance = Test.objects.get(name=test_name)
+            test_instance.delete()
+            return JsonResponse({'ret': 0, 'msg': '测试删除成功'})
+        except Test.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '测试不存在'})
     else:
-        response = HttpResponse()
-        response.status_code = 404
-        response.content = "请使用post方法"
-        return response
+        return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
