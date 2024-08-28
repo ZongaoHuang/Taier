@@ -39,4 +39,8 @@ urlpatterns = [
     path('SetUpdate', views.set_update, name='set_update'),
     path('SetDelete', views.set_delete, name='set_delete'),
     path('UploadSetFile', views.upload_set_file, name='upload_set_file'),
+
+    path("RecentTests", views.recent_tests),
+    path("DatasetList", views.dataset_list),
+    path("SuiteList", views.suite_list),
 ]

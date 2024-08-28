@@ -15,6 +15,8 @@ import csv
 import io
 from django.db.models import Count
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db.models import Q
+
 
 models = ["gpt-3.5-turbo"]
 evaluators = ["gpt-3.5-turbo"]
@@ -486,58 +488,104 @@ def set_delete(request):
         return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
 
 def test_create(request):
-    example = """
-    传入参数如下
-    {
-        "Suite_name" : "testSuite",
-        "Test_name" : "Test1",
-        "Collection" : "question1.csv",
-        "Model" : "gpt-3.5-turbo",
-        "Evaluator" : "gpt-3.5-turbo"
-        "Cate" : "hallu"
-    }
-    """
     if request.method == 'POST':
-        params = json.loads(request.body)
-        suite_name = params['Suite_name']
-        test_name = params['Test_name']
-        collection = params['Collection']
-        model = params['Model']
-        evaluator = params['Evaluator']
-        suite_instance = Suite.objects.get(name=suite_name)
-        collection_instance = Set.objects.get(name=collection)
+        try:
+            data = json.loads(request.body)
+            name = data.get('name')
+            suite = data.get('suite')
+            dataset_id = data.get('dataset')
+            model = data.get('model')
+            evaluator = data.get('evaluator')
 
-        # print(request.body)
-        test_instance = Test.objects.create(
-            name=test_name,
-            collection=collection_instance,
-            model=model,
-            evaluator=evaluator,
-            suite=suite_instance,
-            state='starting',
-            escape_rate='0'
-        )
-        return JsonResponse({'ret': 0, 'msg': 'Test created successfully'})
+            print(f"Received dataset ID: {dataset_id}")  # Add this line for debugging
+
+            # Verify that the dataset exists
+            try:
+                dataset = Set.objects.get(id=dataset_id)
+            except Set.DoesNotExist:
+                return JsonResponse({'ret': 1, 'msg': f'Dataset with ID {dataset_id} does not exist'})
+        
+            suite_instance = Suite.objects.get(name=suite)
+            collection_instance = Set.objects.get(id=dataset_id)
+
+
+            test_instance = Test.objects.create(
+                name=name,
+                collection=collection_instance,
+                model=model,
+                evaluator=evaluator,
+                suite=suite_instance,
+                state='starting',
+                escape_rate='0'
+            )
+            return JsonResponse({'ret': 0, 'msg': 'Test created successfully'})
+        except Suite.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': 'Specified Suite does not exist'})
+        except Set.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': 'Specified Dataset does not exist'})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'Error creating test: {str(e)}'})
     else:
-        return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
+        return JsonResponse({'ret': 1, 'msg': 'Please use POST method'})
 
 
 def test_show(request):
-    example = """
-    传入参数如下
-    {
-        "Suite_name" : "testSuite"
-    }
-    """
     if request.method == 'GET':
-        # print(request.body)
-        params = request.GET
-        suite_name = params["Suite_name"]
-        tests = Test.objects.filter(suite__name=suite_name).values('name', 'state', 'escape_rate', 'created_at')
-        return JsonResponse({'ret': 0, 'tests': list(tests)})
-    else:
-        return JsonResponse({'ret': 1, 'msg': '请使用GET方法'})
+        try:
+            tests = Test.objects.select_related('collection', 'suite').all()
+            test_list = []
+            for test in tests:
+                test_data = {
+                    'name': test.name,
+                    'model': test.model,
+                    'dataset': test.collection.name,
+                    'type': test.suite.name,
+                    'state': test.state,
+                    'escape_rate': test.escape_rate,
+                    'created_at': test.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                }
+                test_list.append(test_data)
 
+            return JsonResponse({
+                'ret': 0,
+                'msg': 'Success',
+                'tests': test_list
+            })
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})
+
+def recent_tests(request):
+    if request.method == 'GET':
+        try:
+            tests = Test.objects.order_by('-created_at')[:3]
+            test_list = [{'name': test.name, 'state': test.state} for test in tests]
+            return JsonResponse({'ret': 0, 'msg': 'Success', 'tests': test_list})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})
+
+def dataset_list(request):
+    if request.method == 'GET':
+        try:
+            datasets = Set.objects.select_related('suite').values('id', 'name', 'suite__name')
+            return JsonResponse({'ret': 0, 'datasets': list(datasets)})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})
+
+def suite_list(request):
+    if request.method == 'GET':
+        try:
+            suites = Suite.objects.values_list('name', flat=True)
+            return JsonResponse({'ret': 0, 'suites': list(suites)})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})
 
 def config(request):
     example = """

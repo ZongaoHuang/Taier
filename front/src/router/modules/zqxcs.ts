@@ -12,7 +12,7 @@ export default {
     {
       path: "/zqxcs/csgl1",
       name: "csgl1",
-      component: () => import("@/views/zqxcs/csgl1.vue"),
+      component: () => import("@/views/zqxcs/test1.vue"),
       meta: {
         title: "测试工具"
       },
@@ -34,7 +34,7 @@ export default {
           }
         }
       ]
-    },  
+    },
     {
       path: "/zqxcs/sjjgl1",
       name: "sjjgl1",

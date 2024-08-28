@@ -1,17 +1,145 @@
 <script setup lang='ts'>
-import { ref, markRaw } from "vue";
+import { ref, onMounted, computed, h, defineComponent } from "vue";
 import ReCol from "@/components/ReCol";
 
 import { ReNormalCountTo } from "@/components/ReCountTo";
 
 import { ChartBar, ChartLine, ChartRound, ChartPie } from "./components/charts";
 
-import { chartData, barChartData, progressData, latestNewsData, testData } from "./data";
+import { chartData, barChartData, progressData, latestNewsData } from "./data";
+import CreateTestForm from '../form/createTestForm.vue';
 
-import { ElMessageBox, ElMessage } from "element-plus";
+import { getTestList, TestData, getRecentTests, createTest, getDatasets, getSuites } from "@/api/csgj";
+
+import { ElMessageBox, ElMessage, ElPagination } from "element-plus";
 defineOptions({
   name: 'jmcz'
 })
+
+// 测试总览
+const testData = ref<TestData[]>([]);
+const currentPage = ref(1);
+const pageSize = ref(5);
+
+const paginatedTestData = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return testData.value.slice(start, end);
+});
+
+const totalPages = computed(() => Math.ceil(testData.value.length / pageSize.value));
+
+const fetchTestData = async () => {
+  try {
+    const response = await getTestList();
+    if (response.ret === 0 && response.tests) {
+      testData.value = response.tests;
+    } else {
+      ElMessage.error(response.msg || "Failed to fetch test data");
+    }
+  } catch (error) {
+    console.error("Error fetching test data:", error);
+    ElMessage.error("Error fetching test data");
+  }
+};
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page;
+};
+
+// 近期测试
+const recentTests = ref<TestData[]>([]);
+
+const fetchRecentTests = async () => {
+  try {
+    const response = await getRecentTests();
+    if (response.ret === 0 && response.tests) {
+      recentTests.value = response.tests.slice(0, 3);
+    } else {
+      ElMessage.error(response.msg || "Failed to fetch recent tests");
+    }
+  } catch (error) {
+    console.error("Error fetching recent tests:", error);
+    ElMessage.error("Error fetching recent tests");
+  }
+};
+
+const createNewTest = async () => {
+  try {
+    const datasetsResponse = await getDatasets();
+    console.log('datasetsResponse:', datasetsResponse);
+
+    if (datasetsResponse.ret !== 0) {
+      ElMessage.error("Failed to fetch datasets");
+      return;
+    }
+
+    const datasets = datasetsResponse.datasets || [];
+    console.log('datasets:', datasets);
+
+    if (datasets.length === 0) {
+      ElMessage.error("No datasets available");
+      return;
+    }
+
+    let formData = null;
+
+    ElMessageBox({
+      title: '创建新测试',
+      message: h(CreateTestForm, {
+        datasetOptions: datasets,
+        onSubmit: (data) => {
+          formData = data;
+        }
+      }),
+      showCancelButton: true,
+      confirmButtonText: '创建',
+      cancelButtonText: '取消',
+      beforeClose: (action, instance, done) => {
+        if (action === 'confirm') {
+          if (!formData || !formData.name || !formData.dataset || !formData.suite) {
+            ElMessage.warning('请填写所有必要信息');
+            return;
+          }
+          instance.confirmButtonLoading = true;
+          console.log('Form data before creating test:', formData);
+          createTest({
+            name: formData.name,
+            suite: formData.suite,
+            dataset: formData.dataset,
+            model: 'gpt-3.5-turbo',
+            evaluator: 'gpt-3.5-turbo'
+          }).then(response => {
+            instance.confirmButtonLoading = false;
+            if (response.ret === 0) {
+              ElMessage.success('测试创建成功');
+              fetchRecentTests();
+              fetchTestData();
+              done();
+            } else {
+              ElMessage.error(response.msg || '测试创建失败');
+            }
+          }).catch(error => {
+            instance.confirmButtonLoading = false;
+            ElMessage.error('Error creating test: ' + error.message);
+          });
+        } else {
+          done();
+        }
+      }
+    }).catch(() => {
+      ElMessage.info('取消创建测试');
+    });
+  } catch (error) {
+    console.error('Error creating test:', error);
+    ElMessage.error('Error creating test');
+  }
+};
+
+onMounted(() => {
+  fetchRecentTests();
+  fetchTestData();
+});
 
 const columns: TableColumnList=[
   {
@@ -51,10 +179,10 @@ const columns1: TableColumnList=[
   }
 ];
 
-const columns2: TableColumnList=[
+const columns2: TableColumnList = [
   {
     label: "创建时间",
-    prop:"date"
+    prop: "created_at"
   },
   {
     label: "测试名称",
@@ -77,8 +205,8 @@ const columns2: TableColumnList=[
     prop: "state"
   },
   {
-    label: "测试率",
-    prop: "rate"
+    label: "逃逸率",
+    prop: "escape_rate"
   }
 ];
 
@@ -165,6 +293,8 @@ function exportTestResult() {
     });
   }
 }
+
+
 </script>
 
 
@@ -200,9 +330,6 @@ function exportTestResult() {
             </span>
             <div
               class="w-8 h-8 flex justify-center items-center rounded-md"
-              :style="{
-                backgroundColor: isDark ? 'transparent' : item.bgColor
-              }"
             >
               <IconifyIconOffline
                 :icon="item.icon"
@@ -267,14 +394,15 @@ function exportTestResult() {
           }
         }"
       >
-        <el-card shadow="never">
-          <div class="flex justify-between">
+        <el-card shadow="never" class="mt-4">
+          <div class="flex justify-between mb-4">
             <span class="text-md font-bold">近期测试列表</span>
-            <el-button type="primary" @click="showCreateTestDialog">创建测试</el-button>
+            <el-button type="primary" @click="createNewTest">创建测试</el-button>
           </div>
-          <el-card shadow="never" class="h-[200px]">
-            <pure-table :data="testData" :columns="columns" @row-click="handleRowClick" />
-          </el-card>
+          <el-table :data="recentTests" style="width: 100%">
+            <el-table-column prop="name" label="测试名称" />
+            <el-table-column prop="state" label="测试状态" />
+          </el-table>
         </el-card>
       </re-col>
 
@@ -335,16 +463,31 @@ function exportTestResult() {
           }
         }"
       >
-        <el-card shadow="never" class="h-[400px]">
-          <div class="flex justify-between">
-            <span class="text-md font-bold">测试总览</span>
-          </div>
-          <el-card shadow="never" class="h-[200px]">
-            <pure-table :data="testData" :columns="columns2"  />
-          </el-card>
-        </el-card>
+      <el-card shadow="never" class="h-[400px] overflow-hidden">
+  <div class="flex justify-between mb-4">
+    <span class="text-md font-bold">测试总览</span>
+  </div>
+  <div class="overflow-auto" style="max-height: 300px;">
+    <pure-table
+      :data="paginatedTestData"
+      :columns="columns2"
+      :header-cell-style="{
+        background: 'var(--el-fill-color-light)',
+        color: 'var(--el-text-color-primary)'
+      }"
+    />
+  </div>
+  <div class="flex justify-center mt-4">
+    <el-pagination
+      v-model:current-page="currentPage"
+      :page-size="pageSize"
+      :total="testData.length"
+      @current-change="handlePageChange"
+      layout="prev, pager, next"
+    />
+  </div>
+</el-card>
       </re-col>
-
     </el-row>
   </div>
 </template>
@@ -381,6 +524,15 @@ function exportTestResult() {
 
 .main-content {
   margin: 20px 20px 0 !important;
+}
+
+:deep(.pure-table) {
+  width: 100%;
+  table-layout: auto;
+}
+
+:deep(.pure-table .el-table__body) {
+  width: 100% !important;
 }
 </style>
 

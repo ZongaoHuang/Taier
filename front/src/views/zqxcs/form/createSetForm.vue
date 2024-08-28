@@ -37,7 +37,7 @@ defineExpose({ getRef, newFormInline });
     :rules="rules"
     label-width="100px"
   >
-    <el-form-item label="数据集名称" prop="name">
+    <el-form-item label="数据集名称" prop="name" >
       <el-input v-model="newFormInline.name" placeholder="请输入数据集名称" />
     </el-form-item>
     <el-form-item label="测试类型" prop="suite_name">
