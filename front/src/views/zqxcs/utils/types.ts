@@ -1,6 +1,6 @@
 interface FormItemProps {
   id?: string;
-  name?: string;
+  name: string;
   suite_name: string;
   file?: File;
   created_at?: string;

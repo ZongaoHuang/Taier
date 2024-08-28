@@ -27,7 +27,7 @@ function getRef() {
   return ruleFormRef.value;
 }
 
-defineExpose({ getRef });
+defineExpose({ getRef, newFormInline });
 </script>
 
 <template>
@@ -43,11 +43,11 @@ defineExpose({ getRef });
     <el-form-item label="测试类型" prop="suite_name">
       <el-select v-model="newFormInline.suite_name" placeholder="请选择测试类型">
         <el-option label="逻辑错误测试" value="逻辑错误测试" />
-        <el-option label="事实错误测试" value="逻辑错误测试" />
+        <el-option label="事实错误测试" value="事实错误测试" />
         <el-option label="偏见测试" value="偏见测试" />
       </el-select>
     </el-form-item>
-    <el-form-item label="上传文件" prop="file">
+    <!-- <el-form-item label="上传文件" prop="file">
       <el-upload
         action="#"
         :auto-upload="false"
@@ -59,6 +59,6 @@ defineExpose({ getRef });
           <div class="el-upload__tip">只能上传 JSON 文件</div>
         </template>
       </el-upload>
-    </el-form-item>
+    </el-form-item> -->
   </el-form>
 </template>

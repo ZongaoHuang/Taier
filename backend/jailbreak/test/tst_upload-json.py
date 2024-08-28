@@ -1,13 +1,13 @@
 import requests
 import pprint
 
-# 文件路径
-file_path = 'F:/Desktop/123/Python-Django-/jailbreak/api/all_dataset.json'
+file_path = 'E:/Study/Code/Project/taier/code/backend/jailbreak/task2_Test1_testSuite.json'
+set_id = '1'  # Replace with an actual set_id
 
-# 使用 files 参数上传文件
 with open(file_path, 'rb') as file:
     files = {'file': file}
-    response = requests.post('http://localhost/api/upload-json', files=files)
+    data = {'set_id': 1}
+    response = requests.post('http://127.0.0.1:8888/api/upload-json', files=files, data=data)
 
-# 打印响应
 pprint.pprint(response.json())
+

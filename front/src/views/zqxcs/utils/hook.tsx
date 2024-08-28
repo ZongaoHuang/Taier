@@ -2,6 +2,7 @@ import "./reset.css";
 import dayjs from "dayjs";
 import editForm from "../form/index.vue";
 import createSetForm from "../form/createSetForm.vue";
+import uploadFileForm from "../form/uploadFileForm.vue";
 import { message } from "@/utils/message";
 import { addDialog } from "@/components/ReDialog";
 import type { PaginationProps } from "@pureadmin/table";
@@ -18,7 +19,8 @@ import {
   deleteSet,
   SetData,
   SetResponse,
-  uploadJson
+  uploadSetFile,
+  uploadJsonFile
 } from "@/api/sjj";
 import {
   type Ref,
@@ -36,6 +38,7 @@ export function useSjj(tableRef: Ref) {
     suite: ""
   });
   const formRef = ref();
+  const uploadFormRef = ref();
   const dataList = ref([]);
   const loading = ref(true);
   const switchLoadMap = ref({});
@@ -55,9 +58,9 @@ export function useSjj(tableRef: Ref) {
     },
     {
       label: "创建时间",
-      prop: "createTime",
-      formatter: ({ createTime }) =>
-        dayjs(createTime).format("YYYY-MM-DD HH:mm:ss")
+      prop: "created_at",
+      formatter: ({ created_at }) =>
+        dayjs(created_at).format("YYYY-MM-DD HH:mm:ss")
     },
     {
       label: "数据集名称",
@@ -68,7 +71,7 @@ export function useSjj(tableRef: Ref) {
       prop: "suite_name",
     },
     {
-      label: "规模",
+      label: "问题规模",
       prop: "question_count"
     },
     {
@@ -104,16 +107,16 @@ export function useSjj(tableRef: Ref) {
 
   async function handleDelete(row) {
     try {
-      const { data } = await deleteSet({ id: row.id });
-      if (data.list && data.list.length === 0) {
+      const response = await deleteSet({ id: row.id });
+      if (response.ret === 0) {
         message(`数据集删除成功`, { type: "success" });
         onSearch();
       } else {
-        message(`删除失败: 未能删除数据`, { type: "error" });
+        message(`删除失败: ${response.msg || '未知错误'}`, { type: "error" });
       }
     } catch (error) {
       console.error("Error deleting set:", error);
-      message(`删除失败`, { type: "error" });
+      message(`删除失败: ${error instanceof Error ? error.message : '未知错误'}`, { type: "error" });
     }
   }
 
@@ -187,43 +190,110 @@ export function useSjj(tableRef: Ref) {
     onSearch();
   };
 
-function openCreateSetDialog() {
-  addDialog({
-    title: "新建数据集",
-    width: "50%",
-    draggable: true,
-    fullscreen: deviceDetection(),
-    fullscreenIcon: true,
-    closeOnClickModal: false,
-    contentRenderer: () => h(createSetForm, { ref: formRef }),
-    beforeSure: (done, { options }) => {
-      const FormRef = formRef.value.getRef();
-      FormRef.validate(async (valid) => {
-        if (valid) {
-          const formData = new FormData();
-          const { newFormInline } = formRef.value;
-          formData.append('name', newFormInline.name);
-          formData.append('suite_name', newFormInline.suite_name);
-          formData.append('file', newFormInline.file);
-
-          try {
-            const response = await uploadJson(formData);
-            if (response.ret === 0) {
-              message("数据集创建成功", { type: "success" });
-              done();
-              onSearch();
-            } else {
-              message(`创建失败: ${response.msg}`, { type: "error" });
-            }
-          } catch (error) {
-            console.error("Error creating set:", error);
-            message("创建失败", { type: "error" });
-          }
+  function openCreateSetDialog() {
+    addDialog({
+      title: "新建数据集",
+      width: "50%",
+      draggable: true,
+      fullscreen: deviceDetection(),
+      fullscreenIcon: true,
+      closeOnClickModal: false,
+      contentRenderer: () => h(createSetForm, { ref: formRef }),
+      beforeSure: async (done, { options }) => {
+        const FormRef = formRef.value;
+        if (!FormRef) {
+          message("表单引用未找到", { type: "error" });
+          return;
         }
-      });
-    }
-  });
-}
+        FormRef.getRef().validate(async (valid) => {
+          if (valid) {
+            const { newFormInline } = FormRef;
+            if (!newFormInline) {
+              message("表单数据未找到", { type: "error" });
+              return;
+            }
+
+            try {
+              const response = await createSet({
+                name: newFormInline.name,
+                suite_name: newFormInline.suite_name
+              });
+              if (response.ret === 0 && response.id) {
+                message("数据集创建成功", { type: "success" });
+                done();
+                openUploadFileDialog(parseInt(response.id));
+              } else {
+                message(`创建失败: ${response.msg}`, { type: "error" });
+              }
+            } catch (error) {
+              console.error("Error creating set:", error);
+              message("创建失败", { type: "error" });
+            }
+          }
+        });
+      }
+    });
+  }
+
+  function openUploadFileDialog(setId: number) {
+    addDialog({
+      title: "上传数据集文件",
+      width: "50%",
+      draggable: true,
+      fullscreen: deviceDetection(),
+      fullscreenIcon: true,
+      closeOnClickModal: false,
+      contentRenderer: () => h(uploadFileForm, { ref: uploadFormRef, setId }),
+      beforeSure: async (done, { options }) => {
+        const FormRef = uploadFormRef.value;
+        if (!FormRef) {
+          message("表单引用未找到", { type: "error" });
+          return;
+        }
+        FormRef.getRef().validate(async (valid) => {
+          if (valid) {
+            const { file } = FormRef.newFormInline;
+            if (!file) {
+              message("请选择文件", { type: "error" });
+              return;
+            }
+  
+            try {
+              const formData = new FormData();
+              formData.append('file', file);
+              formData.append('set_id', setId.toString());
+              
+              console.log('File to be uploaded:', file);
+              console.log('FormData:', formData);
+  
+              const response = await uploadJsonFile(formData);
+  
+              if (response.ret === 0) {
+                message(`文件上传成功，共添加 ${response.question_count} 个问题`, { type: "success" });
+                done();
+                onSearch();
+              } else {
+                message(`上传失败: ${response.msg}`, { type: "error" });
+              }
+            } catch (error) {
+              console.error("Error uploading file:", error);
+              if (error.response) {
+                console.error("Response data:", error.response.data);
+                console.error("Response status:", error.response.status);
+                message(`上传失败: ${error.response.data.msg || '未知错误'}`, { type: "error" });
+              } else if (error.request) {
+                console.error("No response received:", error.request);
+                message("上传失败: 服务器无响应", { type: "error" });
+              } else {
+                console.error("Error setting up request:", error.message);
+                message(`上传失败: ${error.message}`, { type: "error" });
+              }
+            }
+          }
+        });
+      }
+    });
+  }
 
   function openDialog(row?: FormItemProps) {
     addDialog({

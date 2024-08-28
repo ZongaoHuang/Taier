@@ -8,8 +8,8 @@ urlpatterns = [
     path('test', views.test),
     path('run', views.run),
     path('run-explain', views.run_explain),
-    path('upload-csv', upload_csv, name='upload_csv'),
-    path('upload-json', upload_json),
+    path('upload_csv', upload_csv, name='upload_csv'),
+    path('upload-json', views.upload_json, name='upload_json'),
     path('list-question', views.list_question),
     path('add-question', views.add_question),
     path('modify-question', views.modify_question),
@@ -38,4 +38,5 @@ urlpatterns = [
     path("SetCreate", views.set_create, name="set_create"),
     path('SetUpdate', views.set_update, name='set_update'),
     path('SetDelete', views.set_delete, name='set_delete'),
+    path('UploadSetFile', views.upload_set_file, name='upload_set_file'),
 ]

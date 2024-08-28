@@ -48,43 +48,75 @@ def upload_csv(request):
         form = CSVUploadForm()
     return render(request, 'upload_csv.html', {'form': form})
 
+import logging
+logger = logging.getLogger(__name__)
 
 def upload_json(request):
     if request.method == 'POST':
+        logger.info("Received POST request for upload_json")
+        logger.info(f"POST data: {request.POST}")
+        logger.info(f"FILES: {request.FILES}")
         try:
-            # 获取上传的文件
             file = request.FILES.get('file')
+            set_id = request.POST.get('set_id')
+
             if not file:
-                return JsonResponse({'ret': 1, 'msg': '未上传文件'})
+                logger.error("No file received")
+                return JsonResponse({'ret': 1, 'msg': '缺少文件'})
+            if not set_id:
+                logger.error("No set_id received")
+                return JsonResponse({'ret': 1, 'msg': '缺少数据集id'})
 
-            # 读取 JSON 数据
-            data = json.load(file)
+            logger.info(f"File name: {file.name}, size: {file.size}")
+            logger.info(f"Set ID: {set_id}")
 
-            # 创建 Set 实例
-            set_name = file.name  # 或根据需求设置其他名称
-            set_instance = Set.objects.create(name=set_name, cate='hallucination')
+            set_instance = Set.objects.get(id=set_id)
 
-            mid = []
+            file_content = file.read().decode('utf-8')
+            try:
+                data = json.loads(file_content)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON Decode Error: {str(e)}")
+                return JsonResponse({'ret': 1, 'msg': f'无效的 JSON 文件: {str(e)}'})
+
+            if not isinstance(data, list):
+                logger.error("JSON content is not a list")
+                return JsonResponse({'ret': 1, 'msg': 'JSON 内容必须是列表格式'})
+
+            question_count = 0
             for item in data:
-                # 创建 Question 实例
-                hallu_instance = Question.objects.create(
+                if isinstance(item, str):
+                    try:
+                        item = json.loads(item)
+                    except json.JSONDecodeError:
+                        logger.error(f"Invalid JSON string in list: {item}")
+                        continue
+
+                if not isinstance(item, dict):
+                    logger.error(f"Invalid item in list: {item}")
+                    continue
+
+                question = Question.objects.create(
                     goal=item.get('question', ''),
                     target=item.get('answer', ''),
                     behavior='',
                     category=item.get('category', ''),
                     methods='hallucination'
                 )
-                mid.append(hallu_instance.id)
+                set_instance.relation.add(question)
+                question_count += 1
 
-            # 将 Question 实例与 Set 实例关联
-            set_instance.relation.add(*mid)
+            set_instance.count = question_count
+            set_instance.save()
 
-            return JsonResponse({'ret': 0, 'msg': '数据导入成功'})
+            return JsonResponse({'ret': 0, 'msg': '数据导入成功', 'question_count': question_count})
 
-        except json.JSONDecodeError:
-            return JsonResponse({'ret': 1, 'msg': '无效的 JSON 文件'})
+        except Set.DoesNotExist:
+            logger.error(f"Set with id {set_id} does not exist")
+            return JsonResponse({'ret': 1, 'msg': '指定的Set不存在'})
         except Exception as e:
-            return JsonResponse({'ret': 1, 'msg': str(e)})
+            logger.exception("Error in upload_json")
+            return JsonResponse({'ret': 1, 'msg': f'上传失败: {str(e)}'})
 
     return JsonResponse({'ret': 1, 'msg': '请使用 POST 方法'})
 
@@ -348,11 +380,11 @@ def set_show(request):
 def set_create(request):
     if request.method == 'POST':
         try:
-            name = request.POST.get('name')
-            suite_name = request.POST.get('suite_name')
-            file = request.FILES.get('file')
+            data = json.loads(request.body)
+            name = data.get('name')
+            suite_name = data.get('suite_name')
 
-            if not name or not suite_name or not file:
+            if not name or not suite_name:
                 return JsonResponse({'ret': 1, 'msg': '缺少必要参数'})
 
             suite = Suite.objects.get(name=suite_name)
@@ -363,6 +395,26 @@ def set_create(request):
                 created_at=timezone.now()
             )
 
+            return JsonResponse({'ret': 0, 'msg': '数据集创建成功', 'id': new_set.id})
+        except Suite.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '指定的Suite不存在'})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'创建失败: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
+
+# 数据集上传
+def upload_set_file(request):
+    if request.method == 'POST':
+        try:
+            set_id = request.POST.get('set_id')
+            file = request.FILES.get('file')
+
+            if not set_id or not file:
+                return JsonResponse({'ret': 1, 'msg': '缺少必要参数'})
+
+            set_instance = Set.objects.get(id=set_id)
+            
             decoded_file = file.read().decode('utf-8')
             csv_reader = csv.DictReader(io.StringIO(decoded_file))
             
@@ -374,13 +426,13 @@ def set_create(request):
                     category=row.get('category', ''),
                     methods=row.get('methods', '无增强')
                 )
-                new_set.relation.add(question)
+                set_instance.relation.add(question)
 
-            return JsonResponse({'ret': 0, 'msg': '数据集创建成功', 'id': new_set.id})
-        except Suite.DoesNotExist:
-            return JsonResponse({'ret': 1, 'msg': '指定的Suite不存在'})
+            return JsonResponse({'ret': 0, 'msg': '文件上传成功'})
+        except Set.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '指定的Set不存在'})
         except Exception as e:
-            return JsonResponse({'ret': 1, 'msg': f'创建失败: {str(e)}'})
+            return JsonResponse({'ret': 1, 'msg': f'上传失败: {str(e)}'})
     else:
         return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
 
@@ -416,7 +468,8 @@ def set_update(request):
 def set_delete(request):
     if request.method == 'POST':
         try:
-            set_id = request.POST.get('id')
+            data = json.loads(request.body)
+            set_id = data.get('id')
 
             if not set_id:
                 return JsonResponse({'ret': 1, 'msg': '缺少必要参数'})
@@ -431,7 +484,6 @@ def set_delete(request):
             return JsonResponse({'ret': 1, 'msg': f'删除失败: {str(e)}'})
     else:
         return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
-    
 
 def test_create(request):
     example = """

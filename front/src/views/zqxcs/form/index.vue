@@ -101,7 +101,7 @@ defineExpose({ getRef });
         </el-form-item>
       </re-col>
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="规模" prop="scale">
+        <el-form-item label="问题规模" prop="scale">
           <el-input
             v-model="newFormInline.scale"
             clearable

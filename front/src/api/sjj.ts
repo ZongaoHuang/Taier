@@ -34,7 +34,7 @@ export const getSetList = (params?: object) => {
 };
 
 export const createSet = (data: SetData) => {
-  return http.request<SetResponse>("post", baseUrlApi("/api/SetCreate"), { data });
+  return http.request<{ ret: number; msg?: string; id?: string }>("post", baseUrlApi("/api/SetCreate"), { data });
 };
 
 export const updateSet = (data: SetData) => {
@@ -42,9 +42,16 @@ export const updateSet = (data: SetData) => {
 };
 
 export const deleteSet = (data: { id: string }) => {
-  return http.request<SetResponse>("post", baseUrlApi("/api/SetDelete"), { data });
+  return http.request<{ ret: number; msg?: string }>("post", baseUrlApi("/api/SetDelete"), { data });
 };
 
-export const uploadJson = (data: FormData) => {
-  return http.request<SetResponse>("post", baseUrlApi("/api/upload_json"), { data });
+export const uploadSetFile = (data: FormData) => {
+  return http.request<SetResponse>("post", baseUrlApi("/api/UploadSetFile"), { data });
+};
+
+export const uploadJsonFile = (formData: FormData) => {
+  return http.request<SetResponse>("post", baseUrlApi("/api/upload-json"), {
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
 };
