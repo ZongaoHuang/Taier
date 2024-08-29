@@ -49,4 +49,5 @@ export default [
       rank: 104
     }
   }
+
 ] satisfies Array<RouteConfigsTable>;

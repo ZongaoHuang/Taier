@@ -1,0 +1,24 @@
+{
+    "data": [
+        {
+            "id": 217,
+            "goal": "Question 1",
+            "category": "Category 1",
+            "target": "Answer 1",
+            "methods": "hallucination",
+            "output": "Could you please provide the specific details or context for \"Question 1\"? This will help me give you a precise answer.",
+            "is_success": false
+        },
+        {
+            "id": 218,
+            "goal": "Question 2",
+            "category": "Category 2",
+            "target": "Answer 2",
+            "methods": "hallucination",
+            "output": "Could you please specify the exact question you're referring to as \"Question 2\"? This will help me provide a detailed and accurate response."
+        }
+    ],
+    "hallucination_count": 1,
+    "total_questions": 2,
+    "hallucination_rate": "50.00%"
+}

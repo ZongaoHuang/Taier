@@ -43,4 +43,9 @@ urlpatterns = [
     path("RecentTests", views.recent_tests),
     path("DatasetList", views.dataset_list),
     path("SuiteList", views.suite_list),
+    path("TestDetails", views.test_details),
+    path("TestStatus", views.test_status),
+
+    path("DownloadTestResult", views.download_test_result, name="download_test_result"),
+    path("RandomDataset", views.random_dataset),
 ]

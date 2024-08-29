@@ -37,7 +37,8 @@ export function getPluginsList(
         useFlatConfig: true
       },
       terminal: false,
-      enableBuild: false
+      enableBuild: false,
+      overlay: false
     }),
     // 按下Command(⌘)+Shift(⇧)，然后点击页面元素会自动打开本地IDE并跳转到对应的代码位置
     Inspector(),

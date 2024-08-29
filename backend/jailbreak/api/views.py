@@ -16,11 +16,30 @@ import io
 from django.db.models import Count
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
-
+import os
+from django.http import FileResponse
 
 models = ["gpt-3.5-turbo"]
 evaluators = ["gpt-3.5-turbo"]
 
+
+def download_test_result(request):
+    if request.method == 'GET':
+        test_name = request.GET.get('Test_name')
+        try:
+            test = Test.objects.get(name=test_name)
+            file_name = f"{test_name}_{test.suite.name}.json"
+            file_path = os.path.join(os.getcwd(), file_name)
+            if os.path.exists(file_path):
+                response = FileResponse(open(file_path, 'rb'))
+                response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                return response
+            else:
+                return JsonResponse({'ret': 1, 'msg': '结果文件不存在'})
+        except Test.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '测试不存在'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': '请使用GET方法'})
 
 def upload_csv(request):
     if request.method == 'POST':
@@ -103,7 +122,7 @@ def upload_json(request):
                     target=item.get('answer', ''),
                     behavior='',
                     category=item.get('category', ''),
-                    methods='hallucination'
+                    methods='无增强'
                 )
                 set_instance.relation.add(question)
                 question_count += 1
@@ -560,7 +579,7 @@ def recent_tests(request):
     if request.method == 'GET':
         try:
             tests = Test.objects.order_by('-created_at')[:3]
-            test_list = [{'name': test.name, 'state': test.state} for test in tests]
+            test_list = [{'name': test.name, 'state': test.state, 'type': test.suite.name} for test in tests]
             return JsonResponse({'ret': 0, 'msg': 'Success', 'tests': test_list})
         except Exception as e:
             return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
@@ -587,6 +606,29 @@ def suite_list(request):
     else:
         return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})
 
+def test_details(request):
+    if request.method == 'GET':
+        try:
+            test_name = request.GET.get('name')
+            test = Test.objects.select_related('collection', 'suite').get(name=test_name)
+            test_data = {
+                'id': test.id,
+                'name': test.name,
+                'model': test.model,
+                'dataset': test.collection.name,
+                'type': test.suite.name,
+                'state': test.state,
+                'escape_rate': test.escape_rate,
+                'created_at': test.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            return JsonResponse({'ret': 0, 'msg': 'Success', 'data': test_data})
+        except Test.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': 'Test not found'})
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})
+        
 def config(request):
     example = """
     传入参数如下
@@ -654,22 +696,46 @@ def exe_eva(data):
 def jailbreak_exe(test_instance):
     test_instance.state = "running"
     test_instance.save()
+
     data = {
         'dataset': test_instance.collection.name,
         'model': test_instance.model,
         'evaluate_model': test_instance.evaluator
     }
-    res_list, count = exe_eva(data)
+
+    collection = Set.objects.get(name=data['dataset'])
+    related_questions = list(collection.relation.values())
+    res_list = related_questions[:5]  # Limit to 10 questions
+
+    master_key = MasterKey("sk-6ztYKBLUnRd1kViyBelVC5CRrrDwAwzx4AfHdBMozqeD4N5F", execute_model=data["model"],
+                           evaluation_model=data["evaluate_model"])
+
+    count = 0
+    for item in res_list:
+        malicious_instruction = item["goal"]
+        jailbreak_executed = master_key.execute_jailbreak_prompt(malicious_instruction)
+        item["output"] = jailbreak_executed
+        jailbreak_successful = master_key.evaluate_jailbreak_prompt(malicious_instruction, jailbreak_executed)
+        item["is_success"] = jailbreak_successful
+        if jailbreak_successful:
+            count += 1
+
     print(f"{test_instance.name}_{test_instance.suite.name} done!")
-    ret = {"data": res_list}
-    ret_str = json.dumps(ret)
+    result = {
+        "data": res_list,
+        "escape_count": count,
+        "total_questions": len(res_list),
+        "escape_rate": f"{count / len(res_list):.2%}"
+    }
+
     file_path = f"{test_instance.name}_{test_instance.suite.name}.json"
     with open(file_path, 'w', encoding='utf-8') as file:
-        file.write(ret_str)
-    rate = count / len(res_list)
-    test_instance.escape_rate = f"{rate:.2%}"
+        json.dump(result, file, ensure_ascii=False, indent=4)
+
+    test_instance.escape_rate = result["escape_rate"]
     test_instance.state = "finished"
     test_instance.save()
+
     return
 
 
@@ -678,57 +744,104 @@ def hallu_exe(test_instance):
     test_instance.save()
 
     collection = Set.objects.get(name=test_instance.collection.name)
-    related_questions = collection.relation.values()
-    mid_list = []
-    for qs in related_questions:
-        mid = dict()
-        mid["id"] = qs["id"]
-        mid["goal"] = qs["goal"]
-        mid["category"] = qs["category"]
-        mid["target"] = qs["target"]
-        mid["methods"] = qs["methods"]
-        mid_list.append(mid)
+    related_questions = list(collection.relation.values())
+    question_data = related_questions[:5]  # Limit to 10 questions
 
     output_data = []
     model_name = test_instance.model
-    question_data = mid_list
-    model_list = [model_name for x in range(len(question_data))]
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        ret_list = executor.map(run_single_evaluation, question_data, model_list)
-    for item in ret_list:
-        output_data.append(item)
-    hallucination_count = answer_parsing(output_data)
-    print(f"{test_instance.name}_{test_instance.suite.name} done!")
+        futures = [executor.submit(run_single_evaluation, item, model_name) for item in question_data]
+        for future in concurrent.futures.as_completed(futures):
+            output_data.append(future.result())
 
-    ret = {"data": output_data}
-    ret_str = json.dumps(ret)
+    hallucination_count = answer_parsing(output_data)
+    rate = hallucination_count / len(output_data)
+
+    result = {
+        "data": output_data,
+        "hallucination_count": hallucination_count,
+        "total_questions": len(output_data),
+        "hallucination_rate": f"{rate:.2%}"
+    }
+
     file_path = f"{test_instance.name}_{test_instance.suite.name}.json"
     with open(file_path, 'w', encoding='utf-8') as file:
-        file.write(ret_str)
-    rate = hallucination_count / len(output_data)
+        json.dump(result, file, ensure_ascii=False, indent=4)
+
     test_instance.escape_rate = f"{rate:.2%}"
     test_instance.state = "finished"
     test_instance.save()
-    return
 
 
 def test_exec(request):
     if request.method == 'POST':
         params = json.loads(request.body)
-        test_name = params['Test_name']
-        test_instance = Test.objects.get(name=test_name)
-        if test_instance.state != "starting":
-            return JsonResponse({'ret': 1, 'msg': "当前测试已运行"})
-        if test_instance.collection.cate == "jailbreak":
-            x = threading.Thread(target=jailbreak_exe, args=(test_instance,))
+        test_name = params.get('Test_name')
+        if not test_name:
+            return JsonResponse({'ret': 1, 'msg': '缺少测试名称'})
+        try:
+            test_instance = Test.objects.get(name=test_name)
+            if test_instance.state != "starting":
+                return JsonResponse({'ret': 1, 'msg': "当前测试已运行"})
+            
+            test_instance.state = "running"
+            test_instance.save()
+            
+            if test_instance.suite.name in ["逻辑错误测试", "事实错误测试", "偏见与歧视测试"]:
+                x = threading.Thread(target=hallu_exe, args=(test_instance,))
+            else:
+                x = threading.Thread(target=jailbreak_exe, args=(test_instance,))
+            
             x.start()
-        else:
-            x = threading.Thread(target=hallu_exe, args=(test_instance,))
-            x.start()
-        return JsonResponse({'ret': 0, 'msg': '测试开始执行'})
+            logger.info(f"Started test execution for {test_name}")
+            return JsonResponse({'ret': 0, 'msg': '测试开始执行', 'state': 'running'})
+        except Test.DoesNotExist:
+            logger.error(f"Test not found: {test_name}")
+            return JsonResponse({'ret': 1, 'msg': '测试不存在'})
+        except Exception as e:
+            logger.error(f"Error executing test {test_name}: {str(e)}")
+            return JsonResponse({'ret': 1, 'msg': f'执行测试时出错: {str(e)}'})
     else:
         return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
 
+def test_status(request):
+    if request.method == 'GET':
+        test_name = request.GET.get('Test_name')
+        if not test_name:
+            return JsonResponse({'ret': 1, 'msg': '缺少测试名称'})
+        try:
+            test_instance = Test.objects.get(name=test_name)
+            return JsonResponse({
+                'ret': 0,
+                'state': test_instance.state,
+                'escape_rate': test_instance.escape_rate if test_instance.state == 'finished' else None
+            })
+        except Test.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '测试不存在'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': '请使用GET方法'})
+    
+
+def random_dataset(request):
+    if request.method == 'GET':
+        test_type = request.GET.get('type')
+        if not test_type:
+            return JsonResponse({'ret': 1, 'msg': '缺少测试类型'})
+        try:
+            suite = Suite.objects.get(name=test_type)
+            random_set = Set.objects.filter(suite=suite).order_by('?').first()
+            if random_set:
+                return JsonResponse({
+                    'ret': 0,
+                    'dataset': random_set.name,
+                    'id': random_set.id
+                })
+            else:
+                return JsonResponse({'ret': 1, 'msg': '未找到匹配的数据集'})
+        except Suite.DoesNotExist:
+            return JsonResponse({'ret': 1, 'msg': '测试类型不存在'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': '请使用GET方法'})
 
 def test_res(request):
     if request.method == 'GET':

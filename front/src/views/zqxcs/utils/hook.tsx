@@ -168,7 +168,9 @@ export function useSjj(tableRef: Ref) {
     try {
       const response = await getSetList(toRaw(form));
       if (response.ret === 0 && response.data) {
-        dataList.value = response.data.list;
+        dataList.value = response.data.list.filter(
+          item =>["逻辑错误测试", "事实错误测试", "偏见与歧视测试"].includes(item.suite_name)
+        );
         pagination.total = response.data.total || 0;
         pagination.pageSize = response.data.pageSize || 10;
         pagination.currentPage = response.data.currentPage || 1;
@@ -257,17 +259,17 @@ export function useSjj(tableRef: Ref) {
               message("请选择文件", { type: "error" });
               return;
             }
-  
+
             try {
               const formData = new FormData();
               formData.append('file', file);
               formData.append('set_id', setId.toString());
-              
+
               console.log('File to be uploaded:', file);
               console.log('FormData:', formData);
-  
+
               const response = await uploadJsonFile(formData);
-  
+
               if (response.ret === 0) {
                 message(`文件上传成功，共添加 ${response.question_count} 个问题`, { type: "success" });
                 done();
