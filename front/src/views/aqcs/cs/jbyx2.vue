@@ -22,7 +22,7 @@ onMounted(() => {
 
   terminal.write("╔═══════════════════════════════════════╗\r\n");
   terminal.write("║                                       ║\r\n");
-  terminal.write("║        欢迎使用 准确性测试工具        ║\r\n");
+  terminal.write("║        欢迎使用 安全测试工具        ║\r\n");
   terminal.write("║                                       ║\r\n");
   terminal.write("╚═══════════════════════════════════════╝\r\n");
   terminal.write("\r\n请输入测试名称：");

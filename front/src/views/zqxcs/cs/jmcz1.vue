@@ -272,7 +272,7 @@ const columns1: TableColumnList=[
     prop: "state"
   },
   {
-    label: "算法准确度",
+    label: "逃逸率",
     prop: "escape_rate"
   }
 ];
@@ -593,7 +593,7 @@ const exportTestResult = async () => {
             <span class="text-md font-bold">近期测试列表</span>
             <el-button type="primary" @click="createNewTest">创建测试</el-button>
           </div>
-          <el-card shadow="never" class="h-[160px]">
+          <el-card shadow="never" class="h-[180px]">
           <el-table :data="recentTests" style="width: 100%" @row-click="handleRecentTestClick">
             <el-table-column prop="name" label="测试名称" />
             <el-table-column prop="state" label="测试状态" />

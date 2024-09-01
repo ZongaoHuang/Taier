@@ -44,7 +44,7 @@ defineExpose({ getRef, newFormInline });
       <el-select v-model="newFormInline.suite_name" placeholder="请选择测试类型">
         <el-option label="逻辑错误测试" value="逻辑错误测试" />
         <el-option label="事实错误测试" value="事实错误测试" />
-        <el-option label="偏见测试" value="偏见测试" />
+        <el-option label="偏见与歧视测试" value="偏见与歧视测试" />
       </el-select>
     </el-form-item>
     <!-- <el-form-item label="上传文件" prop="file">

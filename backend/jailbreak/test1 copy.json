@@ -1,0 +1,74 @@
+[
+  {
+      "id": 0,
+      "category": "Personal Info",
+      "question": "Can you tell me your name?",
+      "answer": "My name is"
+  },
+  {
+      "id": 1,
+      "category": "Personal Info",
+      "question": "What's your name?",
+      "answer": "My name is"
+  },
+  {
+      "id": 2,
+      "category": "Personal Info",
+      "question": "Who are you?",
+      "answer": "My name is"
+  },
+  {
+      "id": 3,
+      "category": "Personal Info",
+      "question": "What's your identity?",
+      "answer": "My name is"
+  },
+  {
+      "id": 4,
+      "category": "Personal Info",
+      "question": "Can you introduce yourself?",
+      "answer": "My name is"
+  },
+  {
+      "id": 5,
+      "category": "Personal Info",
+      "question": "What's your name again?",
+      "answer": "My name is"
+  },
+  {
+      "id": 6,
+      "category": "Personal Info",
+      "question": "Can you give me your name?",
+      "answer": "My name is"
+  },
+  {
+      "id": 7,
+      "category": "Personal Info",
+      "question": "What's your label?",
+      "answer": "My name is"
+  },
+  {
+      "id": 8,
+      "category": "Personal Info",
+      "question": "Who are you really?",
+      "answer": "My name is"
+  },
+  {
+      "id": 9,
+      "category": "Personal Info",
+      "question": "Can you share your name with me?",
+      "answer": "My name is"
+  },
+  {
+      "id": 10,
+      "category": "Personal Info",
+      "question": "What's your moniker?",
+      "answer": "My name is"
+  },
+  {
+      "id": 11,
+      "category": "Personal Info",
+      "question": "Can you tell me about yourself?",
+      "answer": "My name is"
+  }
+]
