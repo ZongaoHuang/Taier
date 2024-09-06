@@ -34,7 +34,8 @@ urlpatterns = [
     path("TestExec", views.test_exec),
     path("TestResult", views.test_res),
 
-    path("SetShow", views.set_show),
+    path("SetShow1", views.set_show1),
+    path("SetShow2", views.set_show2),
     path("SetCreate", views.set_create, name="set_create"),
     path('SetUpdate', views.set_update, name='set_update'),
     path('SetDelete', views.set_delete, name='set_delete'),

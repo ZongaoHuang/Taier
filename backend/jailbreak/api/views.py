@@ -29,7 +29,7 @@ def download_test_result(request):
         try:
             test = Test.objects.get(name=test_name)
             file_name = f"{test_name}_{test.suite.name}.json"
-            file_path = os.path.join(os.getcwd(), file_name)
+            file_path = os.path.join(os.getcwd(), 'test_result', file_name)
             if os.path.exists(file_path):
                 response = FileResponse(open(file_path, 'rb'))
                 response['Content-Disposition'] = f'attachment; filename="{file_name}"'
@@ -352,50 +352,67 @@ def test_suit_show(request):
         response.content = "请使用get方法"
         return response
 
-def set_show(request):
+def set_show1(request):
     if request.method == 'GET':
         try:
-            page = request.GET.get('page', 1)
-            page_size = request.GET.get('pageSize', 10)
-            name = request.GET.get('name', '')
-            suite = request.GET.get('suite', '')
 
             queryset = Set.objects.all()
-            if name:
-                queryset = queryset.filter(name__icontains=name)
-            if suite:
-                queryset = queryset.filter(suite__name__icontains=suite)
-
-            paginator = Paginator(queryset, page_size)
-            try:
-                sets = paginator.page(page)
-            except PageNotAnInteger:
-                sets = paginator.page(1)
-            except EmptyPage:
-                sets = paginator.page(paginator.num_pages)
-
+            suite_ids = [1, 2, 3]
+            queryset = queryset.filter(suite__in=suite_ids)
+            total = queryset.count()  # 计算筛选后的数据数量
             set_list = [{
                 'id': set_obj.id,
                 'name': set_obj.name,
                 'suite_name': set_obj.suite.name,
                 'created_at': set_obj.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 'question_count': set_obj.relation.count(),
-            } for set_obj in sets]
+            } for set_obj in queryset]
 
             return JsonResponse({
                 'ret': 0,
                 'msg': 'Success',
                 'data': {
                     'list': set_list,
-                    'total': paginator.count,
-                    'pageSize': int(page_size),
-                    'currentPage': int(page)
+                    'total': total,
+                    'pageSize': 10,
+                    'currentPage': 1
                 }
             })
         except Exception as e:
             return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
     else:
         return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})
+    
+def set_show2(request):
+    if request.method == 'GET':
+        try:
+
+            queryset = Set.objects.all()
+            suite_ids = [5,6,7,8]
+            queryset = queryset.filter(suite__in=suite_ids)
+            total = queryset.count()  # 计算筛选后的数据数量
+            set_list = [{
+                'id': set_obj.id,
+                'name': set_obj.name,
+                'suite_name': set_obj.suite.name,
+                'created_at': set_obj.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'question_count': set_obj.relation.count(),
+            } for set_obj in queryset]
+
+            return JsonResponse({
+                'ret': 0,
+                'msg': 'Success',
+                'data': {
+                    'list': set_list,
+                    'total': total,
+                    'pageSize': 10,
+                    'currentPage': 1
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
+    else:
+        return JsonResponse({'ret': 1, 'msg': 'Please use GET method'})    
 
 # 数据集创建 
 def set_create(request):
@@ -579,7 +596,18 @@ def recent_tests(request):
     if request.method == 'GET':
         try:
             tests = Test.objects.order_by('-created_at')[:3]
-            test_list = [{'name': test.name, 'state': test.state, 'type': test.suite.name} for test in tests]
+            test_list = []
+            for test in tests:
+                test_data = {
+                    'name': test.name,
+                    'model': test.model,
+                    'dataset': test.collection.name,
+                    'type': test.suite.name,
+                    'state': test.state,
+                    'escape_rate': test.escape_rate,
+                    'created_at': test.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                }
+                test_list.append(test_data)
             return JsonResponse({'ret': 0, 'msg': 'Success', 'tests': test_list})
         except Exception as e:
             return JsonResponse({'ret': 1, 'msg': f'Error: {str(e)}'})
@@ -738,7 +766,7 @@ def jailbreak_exe(test_instance):
         "escape_rate": f"{count / len(res_list):.2%}"
     }
 
-    file_path = f"{test_instance.name}_{test_instance.suite.name}.json"
+    file_path = os.path.join('test_result', f"{test_instance.name}_{test_instance.suite.name}.json")
     with open(file_path, 'w', encoding='utf-8') as file:
         json.dump(result, file, ensure_ascii=False, indent=4)
 
@@ -774,7 +802,7 @@ def hallu_exe(test_instance):
         "hallucination_rate": f"{rate:.2%}"
     }
 
-    file_path = f"{test_instance.name}_{test_instance.suite.name}.json"
+    file_path = os.path.join('test_result', f"{test_instance.name}_{test_instance.suite.name}.json")
     with open(file_path, 'w', encoding='utf-8') as file:
         json.dump(result, file, ensure_ascii=False, indent=4)
 
