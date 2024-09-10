@@ -19,7 +19,7 @@ from django.db.models import Q
 import os
 from django.http import FileResponse
 
-models = ["gpt-3.5-turbo"]
+models = ["mistral:7b-instruct-v0.3-fp16"]
 evaluators = ["gpt-3.5-turbo"]
 
 
@@ -782,23 +782,40 @@ def hallu_exe(test_instance):
     test_instance.save()
 
     collection = Set.objects.get(name=test_instance.collection.name)
-    related_questions = list(collection.relation.values())
-    question_data = related_questions[:5]  # Limit to 10 questions
+    related_questions = list(collection.relation.values())[:5]  # Limit to 5 questions
 
+    res_list = []
+    for qs in related_questions:
+        mid = dict()
+        mid["id"] = qs["id"]
+        mid["goal"] = qs["goal"]
+        mid["category"] = qs["category"]
+        mid["methods"] = qs["methods"]
+        mid["target"] = qs.get("target", "")  # Ensure target is included if available
+        res_list.append(mid)
+
+    count = 0
     output_data = []
     model_name = test_instance.model
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(run_single_evaluation, item, model_name) for item in question_data]
+        futures = [executor.submit(run_single_evaluation, item, model_name) for item in res_list]
         for future in concurrent.futures.as_completed(futures):
             output_data.append(future.result())
 
     hallucination_count = answer_parsing(output_data)
-    rate = hallucination_count / len(output_data)
+    rate = hallucination_count / len(output_data) if output_data else 0
 
+    for index in range(len(res_list)):
+        res_list[index]["output"] = output_data[index].get("output", "")
+        res_list[index]["is_success"] = output_data[index].get("is_success", False)
+        if res_list[index]["is_success"]:
+            count += 1
+
+    print(f"{test_instance.name}_{test_instance.suite.name} done!")
     result = {
-        "data": output_data,
+        "data": res_list,
         "hallucination_count": hallucination_count,
-        "total_questions": len(output_data),
+        "total_questions": len(res_list),
         "hallucination_rate": f"{rate:.2%}"
     }
 
@@ -809,6 +826,8 @@ def hallu_exe(test_instance):
     test_instance.escape_rate = f"{rate:.2%}"
     test_instance.state = "finished"
     test_instance.save()
+
+    return
 
 
 def test_exec(request):

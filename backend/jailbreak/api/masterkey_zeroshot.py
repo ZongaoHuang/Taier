@@ -27,7 +27,10 @@ class MasterKey:
         Retries up to 3 times with exponential backoff in case of failure.
         """
         logger.debug(f"Calling LLM completion with model: {model} and prompt: {prompt}")
-        client = openai.Client(api_key=self.openai_api_key, base_url="https://api.chatanywhere.tech/v1")
+        if 'gpt' in model.lower():
+            client = openai.Client(api_key=self.openai_api_key, base_url="https://api.chatanywhere.tech/v1")
+        else:
+            client = openai.Client(api_key = "none", base_url="https://C502:OczPiFo3wZvI@llm.fancybag.cn/v1")
         response = client.chat.completions.create(
             model=model,
             messages=[
