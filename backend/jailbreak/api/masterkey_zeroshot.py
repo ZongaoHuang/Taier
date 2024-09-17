@@ -10,7 +10,7 @@ MAX_THREADS = 10
 
 
 class MasterKey:
-    def __init__(self, openai_key: str, generation_model: str = "gpt-3.5-turbo", execute_model: str = "gpt-3.5-turbo", evaluation_model: str = "gpt-3.5-turbo"):
+    def __init__(self, openai_key: str, generation_model: str = "mistral:7b-instruct-v0.3-fp16", execute_model: str = "mistral:7b-instruct-v0.3-fp16", evaluation_model: str = "mistral:7b-instruct-v0.3-fp16"):
         """
         Initializes the MasterKey object with the OpenAI API key and model names for generation and evaluation.
         """

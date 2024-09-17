@@ -49,4 +49,7 @@ urlpatterns = [
 
     path("DownloadTestResult", views.download_test_result, name="download_test_result"),
     path("RandomDataset", views.random_dataset),
+    
+    path('run-test/', views.run_test, name='run_test'),
+    path('download-log/', views.download_log, name='download_log'),
 ]

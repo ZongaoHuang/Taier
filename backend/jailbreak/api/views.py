@@ -18,9 +18,10 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
 import os
 from django.http import FileResponse
+import subprocess
 
 models = ["mistral:7b-instruct-v0.3-fp16"]
-evaluators = ["gpt-3.5-turbo"]
+evaluators = ["mistral:7b-instruct-v0.3-fp16"]
 
 
 def download_test_result(request):
@@ -151,14 +152,14 @@ def run_explain(request):
         'data': [
             {
                 'dataset': 'datasetname1',
-                'model': 'gpt-3.5-turbo',
-                'evaluate': 'gpt-3.5-turbo'
+                'model': 'mistral:7b-instruct-v0.3-fp16',
+                'evaluate': 'mistral:7b-instruct-v0.3-fp16'
             },
 
             {
                 'dataset': 'datasetname2',
-                'model': 'gpt-3.5-turbo',
-                'evaluate': 'gpt-3.5-turbo'
+                'model': 'mistral:7b-instruct-v0.3-fp16',
+                'evaluate': 'mistral:7b-instruct-v0.3-fp16'
             }
         ]
     }
@@ -727,14 +728,14 @@ def jailbreak_exe(test_instance):
 
     data = {
         'dataset': test_instance.collection.name,
-        'model': test_instance.model,
+        'model': "mistral:7b-instruct-v0.3-fp16",
         'evaluate_model': test_instance.evaluator
     }
 
     master_key = MasterKey("sk-6ztYKBLUnRd1kViyBelVC5CRrrDwAwzx4AfHdBMozqeD4N5F", execute_model=data["model"],
                            evaluation_model=data["evaluate_model"])
     collection = Set.objects.get(name=data["dataset"])
-    related_questions = list(collection.relation.values())[:5]  # Limit to 5 questions
+    related_questions = list(collection.relation.values())
     res_list = []
     for qs in related_questions:
         mid = dict()
@@ -782,52 +783,59 @@ def hallu_exe(test_instance):
     test_instance.save()
 
     collection = Set.objects.get(name=test_instance.collection.name)
-    related_questions = list(collection.relation.values())[:5]  # Limit to 5 questions
+    related_questions = list(collection.relation.values())
 
-    res_list = []
-    for qs in related_questions:
-        mid = dict()
-        mid["id"] = qs["id"]
-        mid["goal"] = qs["goal"]
-        mid["category"] = qs["category"]
-        mid["methods"] = qs["methods"]
-        mid["target"] = qs.get("target", "")  # Ensure target is included if available
-        res_list.append(mid)
+    # 准备保存输出的列表，使用字典通过 id 映射
+    res_map = {qs["id"]: {
+        "id": qs["id"],
+        "goal": qs["goal"],
+        "category": qs["category"],
+        "methods": qs["methods"],
+        "target": qs.get("target", "")
+    } for qs in related_questions}
 
-    count = 0
-    output_data = []
-    model_name = test_instance.model
+    output_data = []  # 保存所有输出的数据
+    model_name = "mistral:7b-instruct-v0.3-fp16"
+    
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(run_single_evaluation, item, model_name) for item in res_list]
+        # 提交任务，并通过未来对象与问题 ID 进行映射
+        futures = {executor.submit(run_single_evaluation, res_map[qid], model_name): qid for qid in res_map}
+        
         for future in concurrent.futures.as_completed(futures):
-            output_data.append(future.result())
+            qid = futures[future]  # 取出问题的 ID
+            try:
+                result = future.result()
+                res_map[qid]["output"] = result["output"]  # 将结果存回正确的 qa_pair
+                output_data.append(res_map[qid])
+            except Exception as exc:
+                print(f"在评估过程中出现错误: {exc}")
 
-    hallucination_count = answer_parsing(output_data)
+    # 调用 answer_parsing 进行 is_success 判断
+    hallucination_count = answer_parsing(output_data)  # 解析并计数
     rate = hallucination_count / len(output_data) if output_data else 0
 
-    for index in range(len(res_list)):
-        res_list[index]["output"] = output_data[index].get("output", "")
-        res_list[index]["is_success"] = output_data[index].get("is_success", False)
-        if res_list[index]["is_success"]:
-            count += 1
-
-    print(f"{test_instance.name}_{test_instance.suite.name} done!")
+    # 准备最终结果，确保输出与问题正确匹配
     result = {
-        "data": res_list,
+        "data": list(res_map.values()),  # 转换字典为列表
         "hallucination_count": hallucination_count,
-        "total_questions": len(res_list),
+        "total_questions": len(output_data),
         "hallucination_rate": f"{rate:.2%}"
     }
 
+    # 保存结果到文件
     file_path = os.path.join('test_result', f"{test_instance.name}_{test_instance.suite.name}.json")
     with open(file_path, 'w', encoding='utf-8') as file:
         json.dump(result, file, ensure_ascii=False, indent=4)
 
+    # 更新测试实例
     test_instance.escape_rate = f"{rate:.2%}"
     test_instance.state = "finished"
     test_instance.save()
 
     return
+
+
+
 
 
 def test_exec(request):
@@ -928,3 +936,93 @@ def test_dele(request):
             return JsonResponse({'ret': 1, 'msg': '测试不存在'})
     else:
         return JsonResponse({'ret': 1, 'msg': '请使用POST方法'})
+    
+def run_test(request):
+    if request.method == 'POST':
+        try:
+            # 解析请求中的 JSON 数据
+            data = json.loads(request.body)
+            phone_model = data.get('phoneModel')
+            test_type = data.get('testType')
+            sample_count = data.get('sampleCount')
+
+            # 打印接收到的数据
+            print(f"手机型号: {phone_model}, 测试类型: {test_type}, 样本数量: {sample_count}")
+
+            # 获取 views.py 所在目录
+            current_directory = os.path.dirname(os.path.abspath(__file__))
+            script_path = os.path.join(current_directory, 'transferadb.py')  # 直接从同目录运行 transferadb.py
+            
+            # 检查脚本是否存在
+            if not os.path.exists(script_path):
+                return JsonResponse({'success': False, 'error': '脚本不存在'}, status=400)
+
+            # 调用 Python 脚本并传递参数，使用 Popen 后台运行，输出可以看到
+            process = subprocess.Popen(
+                ['python', script_path, phone_model, test_type, str(sample_count)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+
+            # 等待脚本执行完成并获取输出
+            stdout, stderr = process.communicate()
+
+            # 输出执行状态
+            #print(f"脚本输出: {stdout}")
+            #print(f"脚本错误输出: {stderr}")
+
+            # 检查脚本执行状态
+            if process.returncode == 0:
+                return JsonResponse({'success': True, 'output': stdout}, status=200)
+            else:
+                return JsonResponse({'success': False, 'error': stderr}, status=500)
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'success': False, 'error': '无效的请求方法'}, status=400)
+
+
+def download_test_log(request):
+    # 从请求中获取测试类型参数
+    test_type = request.GET.get('testType', '')
+
+    # 构造日志文件路径
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    log_file_path = os.path.join(base_dir, f'../Taieradb/{test_type}_test_log.txt')
+
+    # 检查日志文件是否存在
+    if os.path.exists(log_file_path):
+        # 返回文件下载响应
+        response = FileResponse(open(log_file_path, 'rb'))
+        response['Content-Disposition'] = f'attachment; filename="{test_type}_test_log.txt"'
+        return response
+    else:
+        return JsonResponse({'success': False, 'error': '文件不存在'}, status=404)
+        
+
+def download_log(request):
+    try:
+        # 获取查询参数中的 testType
+        test_type = request.GET.get('testType')
+        
+        # 定义日志文件名
+        if test_type == 'accuracy':
+            log_file = 'accuracy_test_log.txt'
+        elif test_type == 'security':
+            log_file = 'security_test_log.txt'
+        elif test_type == 'privacy':
+            log_file = 'privacy_test_log.txt'
+        else:
+            return JsonResponse({'success': False, 'message': '无效的测试类型'}, status=400)
+        
+        # 构建日志文件路径
+        log_file_path = os.path.join(os.path.dirname(__file__), 'Taieradb', log_file)
+
+        # 检查文件是否存在
+        if not os.path.exists(log_file_path):
+            return JsonResponse({'success': False, 'message': '日志文件不存在'}, status=404)
+
+        # 返回文件响应
+        return FileResponse(open(log_file_path, 'rb'), as_attachment=True, filename=log_file)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)

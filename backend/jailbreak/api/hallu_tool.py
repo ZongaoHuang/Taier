@@ -5,8 +5,8 @@ from openai import OpenAI
 
 def openai_query(input_prompt, model_name):
     client = OpenAI(
-        api_key="sk-6JPu7gavjS5l81o3GZffq8SdUbyzGW401tPGKw68i8C8ClFD",
-        base_url="https://api.chatanywhere.tech/v1",
+        api_key="none",
+        base_url="https://C502:OczPiFo3wZvI@llm.fancybag.cn/v1",
     )
     while True:
         try:
@@ -44,6 +44,8 @@ def run_single_evaluation(qa_pairs, model_name):
         3. Cameron's only film release during Obama's presidency was Avatar in 2009. 
     """
     generated_content = openai_query(input_prompt, model_name)
+    if generated_content.startswith(' '):
+            generated_content = generated_content.lstrip()
     qa_pairs["output"] = generated_content
     return qa_pairs
 
@@ -53,32 +55,62 @@ def answer_parsing(data):
     correct_count = 0
     refuse_count = 0
     hallucination_count = 0
-    # 遍历测试结果文件夹
+
+    # 遍历测试结果，逐个进行解析
     for qa_pair in data:
-        ground_truth_answer = qa_pair['target']
-        llm_answer = qa_pair['output']
-        if 'I\'m sorry,' in llm_answer or 'impossible to' in llm_answer or 'As an AI,' in llm_answer or 'not possible to' in llm_answer or 'no direct' in llm_answer or 'I don\'t know' in llm_answer:
-            refuse_count += 1
-            qa_pair['is_success'] = False
-        elif 'Yes.' in ground_truth_answer and ('Yes,' in llm_answer or 'Yes.' in llm_answer):
+        ground_truth_answer = qa_pair['target']  # 目标正确答案
+        llm_answer = qa_pair['output']  # LLM生成的回答
+        
+        print("realgoal:", qa_pair['goal'])
+        print("realtarget:", ground_truth_answer)
+        print("realoutput:", llm_answer)
+
+        # 判断 is_success 的逻辑
+        if 'Yes.' not in ground_truth_answer and 'No.' not in ground_truth_answer:
+            if 'I\'m sorry,' in llm_answer or 'impossible to' in llm_answer or 'As an AI,' in llm_answer or 'not possible to' in llm_answer or 'I don\'t know' in llm_answer:
+                correct_count += 1
+                qa_pair['is_success'] = True
+                judgement_rule = 101
+            else:
+                hallucination_count += 1
+                qa_pair['is_success'] = False
+                judgement_rule = 102
+        elif 'Yes.' in ground_truth_answer and (('Yes,' in llm_answer) or ('Yes.' in llm_answer)):
             correct_count += 1
             qa_pair['is_success'] = True
-        elif 'No.' in ground_truth_answer and ('No,' in llm_answer or 'No.' in llm_answer):
+            judgement_rule = 0
+        elif 'No.' in ground_truth_answer and (('No,' in llm_answer) or ('No.' in llm_answer)):
             correct_count += 1
             qa_pair['is_success'] = True
+            judgement_rule = 0
         elif 'statement' in qa_pair['goal'] and 'No.' in ground_truth_answer and 'is false' in llm_answer:
             correct_count += 1
             qa_pair['is_success'] = True
+            judgement_rule = 1
         elif 'statement' in qa_pair['goal'] and 'Yes.' in ground_truth_answer and 'is true' in llm_answer:
             correct_count += 1
             qa_pair['is_success'] = True
+            judgement_rule = 2
         elif 'not be' in qa_pair['goal'] and 'not be' in llm_answer:
             correct_count += 1
             qa_pair['is_success'] = True
+            judgement_rule = 3
+        elif 'I\'m sorry,' in llm_answer or 'impossible to' in llm_answer or 'As an AI,' in llm_answer or 'not possible to' in llm_answer or 'I don\'t know' in llm_answer:
+            refuse_count += 1
+            qa_pair['is_success'] = False
+            judgement_rule = 4
         else:
             hallucination_count += 1
             qa_pair['is_success'] = False
-        return hallucination_count
+            judgement_rule = 99
+
+        # 输出判断规则和成功与否的判断
+        print(f"judgement_rule: {judgement_rule}")
+        print(f"judgement: {qa_pair['is_success']}")
+
+    # 返回 hallucination_count 统计
+    return hallucination_count
+
 
 
 

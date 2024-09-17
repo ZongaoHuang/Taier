@@ -209,8 +209,8 @@ const createNewTest = async () => {
             name: formData.name,
             suite: formData.suite,
             dataset: formData.dataset,
-            model: 'gpt-3.5-turbo',
-            evaluator: 'gpt-3.5-turbo'
+            model: 'mistral:7b-instruct-v0.3-fp16',
+            evaluator: 'mistral:7b-instruct-v0.3-fp16'
           }).then(response => {
             instance.confirmButtonLoading = false;
             if (response.ret === 0) {

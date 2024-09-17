@@ -99,8 +99,8 @@ async function createTest1(dataset: string) {
       name: testName.value,
       suite: testType.value,
       dataset: datasetID.value,
-      model: 'gpt-3.5-turbo', // You might want to allow user to choose this
-      evaluator: 'gpt-3.5-turbo' // You might want to allow user to choose this
+      model: 'mistral:7b-instruct-v0.3-fp16', // You might want to allow user to choose this
+      evaluator: 'mistral:7b-instruct-v0.3-fp16' // You might want to allow user to choose this
     });
 
     if (response.ret === 0) {
