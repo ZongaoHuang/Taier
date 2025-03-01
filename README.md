@@ -112,3 +112,12 @@ pnpm install
 pnpm run dev
 
 ```
+## 整体样式
+![image](https://github.com/user-attachments/assets/acd9c4b1-9d54-4a6f-8358-99fb92f6fd8b)
+![image](https://github.com/user-attachments/assets/46e561ec-6fef-4573-83e7-aabefeaffab6)
+![image](https://github.com/user-attachments/assets/9105fb27-4ec7-4f6e-a90f-a6401fb87960)
+![image](https://github.com/user-attachments/assets/8e3086c7-f002-44e3-a16b-f846b79a395f)
+
+
+
+
